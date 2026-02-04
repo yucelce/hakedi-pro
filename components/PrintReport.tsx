@@ -168,17 +168,20 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           </tfoot>
         </table>
 
-        {/* İMZA BLOĞU */}
-        <div className="flex justify-between mt-12 px-6 text-center break-inside-avoid">
-            <div>
-                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">YÜKLENİCİ</p>
+        // ... (tablo bitişi) ...
+
+        {/* DİNAMİK İMZA BLOĞU */}
+        <div className="flex justify-between mt-12 px-6 text-center break-inside-avoid gap-4">
+          {projectInfo.signatories.map((sig, index) => (
+            <div key={index} className="flex-1">
+                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto uppercase">
+                  {sig.title}
+                </p>
+                <p className="text-sm">
+                  {sig.name ? sig.name : '...................................'}
+                </p>
             </div>
-            <div>
-                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">KONTROL</p>
-            </div>
-            <div>
-                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">ONAYLAYAN</p>
-            </div>
+          ))}
         </div>
       </div>
     </div>

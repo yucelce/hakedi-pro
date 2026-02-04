@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { MeasurementSheet } from '../types';
+import { MeasurementSheet, ProjectInfo } from '../types';
 import { formatNumber } from '../utils';
 import { Printer, Settings, FileText } from 'lucide-react';
 
 interface Props {
   sheets: MeasurementSheet[];
   previousQuantities: Record<string, number>;
+  projectInfo: ProjectInfo;
 }
 
-export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities }) => {
+export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities, projectInfo }) => {
   
   // --- AYARLAR STATE ---
   const [settings, setSettings] = useState({
@@ -251,20 +252,14 @@ export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities }) =>
          * Bu dönem hakedişi ile Yüklenici'ye ödenecek net tutardır. (Fatura Tutarı - Kesintiler)
       </div>
       
-      {/* İMZA BLOĞU (Sadece Baskıda) */}
-      <div className="hidden print:flex justify-between px-16 mt-20 max-w-5xl mx-auto">
-        <div className="text-center">
-            <p className="font-bold mb-10">YÜKLENİCİ</p>
-            <p>...................................</p>
-        </div>
-        <div className="text-center">
-            <p className="font-bold mb-10">KONTROL MÜHENDİSİ</p>
-            <p>...................................</p>
-        </div>
-        <div className="text-center">
-            <p className="font-bold mb-10">ONAYLAYAN</p>
-            <p>...................................</p>
-        </div>
+      {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) */}
+      <div className="hidden print:flex justify-between px-16 mt-20 max-w-5xl mx-auto gap-4">
+        {projectInfo.signatories.map((sig, index) => (
+          <div key={index} className="text-center flex-1">
+              <p className="font-bold mb-10 uppercase">{sig.title}</p>
+              <p>{sig.name ? sig.name : '...................................'}</p>
+          </div>
+        ))}
       </div>
 
     </div>

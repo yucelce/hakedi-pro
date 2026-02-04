@@ -1,15 +1,16 @@
 import React, { useMemo } from 'react';
-import { MeasurementSheet } from '../types';
+import { MeasurementSheet, ProjectInfo } from '../types';
 import { formatNumber } from '../utils';
-import { FileText, Printer, Save } from 'lucide-react';
+import { FileText, Printer } from 'lucide-react';
 
 interface Props {
   sheets: MeasurementSheet[];
   previousQuantities: Record<string, number>; // Poz No -> Önceki Miktar eşleşmesi
   setPreviousQuantities: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  projectInfo: ProjectInfo;
 }
 
-export const PaymentSummary: React.FC<Props> = ({ sheets, previousQuantities, setPreviousQuantities }) => {
+export const PaymentSummary: React.FC<Props> = ({ sheets, previousQuantities, setPreviousQuantities, projectInfo }) => {
   
   // --- VERİ HESAPLAMA VE GRUPLAMA ---
   const summaryData = useMemo(() => {
@@ -197,20 +198,14 @@ export const PaymentSummary: React.FC<Props> = ({ sheets, previousQuantities, se
         </table>
       </div>
 
-      {/* İmza Bloğu (Sadece Çıktıda Görünür) */}
-      <div className="mt-16 hidden print:flex justify-between px-10 text-sm">
-         <div className="text-center">
-            <p className="font-bold mb-8">YÜKLENİCİ</p>
-            <p>...................................</p>
-         </div>
-         <div className="text-center">
-            <p className="font-bold mb-8">KONTROL MÜHENDİSİ</p>
-            <p>...................................</p>
-         </div>
-         <div className="text-center">
-            <p className="font-bold mb-8">ONAYLAYAN</p>
-            <p>...................................</p>
-         </div>
+      {/* DİNAMİK İMZA BLOĞU (Sadece Çıktıda Görünür) */}
+      <div className="mt-16 hidden print:flex justify-between px-10 text-sm gap-4">
+         {projectInfo.signatories.map((sig, index) => (
+           <div key={index} className="text-center flex-1">
+              <p className="font-bold mb-8 uppercase">{sig.title}</p>
+              <p>{sig.name ? sig.name : '...................................'}</p>
+           </div>
+         ))}
       </div>
 
     </div>

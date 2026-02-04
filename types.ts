@@ -20,13 +20,19 @@ export interface MeasurementSheet {
   calculatedCost: number;
 }
 
+// YENİ: İmza yetkilisi yapısı
+export interface Signatory {
+  title: string; // Örn: YÜKLENİCİ
+  name: string;  // Örn: Ali Veli
+}
+
 export interface ProjectInfo {
   projectName: string;
   contractor: string;
   employer: string;
   period: string;
   date: string;
+  signatories: Signatory[]; // YENİ EKLENEN ALAN
 }
 
-// BURASI GÜNCELLENDİ: 'settings' eklendi
 export type TabView = 'input' | 'summary' | 'cover' | 'report' | 'settings';

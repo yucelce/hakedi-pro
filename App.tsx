@@ -23,7 +23,13 @@ const App: React.FC = () => {
     contractor: 'DEMİR İNŞAAT TAAHHÜT LTD. ŞTİ.',
     employer: 'BÜYÜKŞEHİR BELEDİYESİ',
     period: '1 NOLU HAKEDİŞ',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    // YENİ: Varsayılan imzalar
+    signatories: [
+      { title: 'YÜKLENİCİ', name: '' },
+      { title: 'KONTROL MÜHENDİSİ', name: '' },
+      { title: 'ONAYLAYAN', name: '' }
+    ]
   });
 
   // Metraj Verileri (Örnek Veri ile Başlangıç)
