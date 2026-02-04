@@ -6,46 +6,32 @@
     <title>Hakediş Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      /* Print specific styles that are hard to do with utility classes only */
+      /* Print specific styles */
       @media print {
-        @page {
-          size: A4;
-          margin: 10mm;
-        }
-        body {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-          background-color: white !important;
-        }
-        .no-print {
-          display: none !important;
-        }
-        .print-break-before {
-          page-break-before: always;
-        }
-        .print-container {
-          width: 100% !important;
-          max-width: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          box-shadow: none !important;
-        }
+        @page { size: A4; margin: 10mm; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
+        .no-print { display: none !important; }
+        .print-break-before { page-break-before: always; }
+        .print-container { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
-    "vite": "https://esm.sh/vite@^7.3.1"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+        "react/": "https://esm.sh/react@^19.2.4/",
+        "react": "https://esm.sh/react@^19.2.4",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+        "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
+        "vite": "https://esm.sh/vite@^7.3.1"
+      }
+    }
+    </script>
+  </head>
   <body class="bg-gray-50 text-slate-800">
     <div id="root"></div>
+
+    <script type="module" src="/index.tsx"></script>
+    
   </body>
 </html>
