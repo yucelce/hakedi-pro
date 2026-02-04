@@ -1,197 +1,189 @@
-import React from 'react';
-import { WorkItem, ProjectInfo } from '../types';
-import { calculateItemCurrentQuantity, calculateMeasurementTotal, formatNumber, formatCurrency } from '../utils';
+// components/PrintReport.tsx
+import React, { useMemo } from 'react';
+import { MeasurementSheet, ProjectInfo } from '../types';
+import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
 
-interface PrintReportProps {
-  items: WorkItem[];
+interface Props {
+  sheets: MeasurementSheet[];
   projectInfo: ProjectInfo;
+  previousQuantities: Record<string, number>;
 }
 
-export const PrintReport: React.FC<PrintReportProps> = ({ items, projectInfo }) => {
-  
-  // Calculate Grand Totals
-  const totalAmount = items.reduce((acc, item) => {
-    const currentQty = calculateItemCurrentQuantity(item);
+export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuantities }) => {
+
+  // --- HESAPLAMALAR ---
+  // 1. Yeşil Defter için Gruplama (Poz No bazında toplama)
+  const groupedData = useMemo(() => {
+    const groups: Record<string, {
+      code: string;
+      description: string;
+      unit: string;
+      unitPrice: number;
+      totalQty: number;
+    }> = {};
+
+    sheets.forEach(sheet => {
+      if (!groups[sheet.code]) {
+        groups[sheet.code] = {
+          code: sheet.code,
+          description: sheet.description || sheet.groupName,
+          unit: sheet.unit,
+          unitPrice: sheet.unitPrice,
+          totalQty: 0
+        };
+      }
+      groups[sheet.code].totalQty += sheet.totalAmount;
+    });
+
+    return Object.values(groups);
+  }, [sheets]);
+
+  // Genel Toplam Tutar
+  const grandTotalAmount = groupedData.reduce((acc, item) => {
+    const prevQty = previousQuantities[item.code] || 0;
+    const currentQty = item.totalQty - prevQty;
     return acc + (currentQty * item.unitPrice);
   }, 0);
 
-  const kdv = totalAmount * 0.20;
-  const grandTotal = totalAmount + kdv;
-
-  const ReportHeader = ({ title }: { title: string }) => (
-    <div className="mb-6 border-b-2 border-gray-800 pb-4">
-      <div className="flex justify-between items-start">
+  // --- ORTAK BİLEŞENLER ---
+  const Header = ({ title }: { title: string }) => (
+    <div className="border-b-2 border-gray-800 pb-4 mb-6 break-inside-avoid">
+      <div className="flex justify-between uppercase font-bold text-xs md:text-sm">
         <div>
-          <h1 className="text-xl font-bold uppercase text-gray-900">{projectInfo.projectName}</h1>
+          <h1 className="text-lg">{projectInfo.projectName}</h1>
           <p className="text-gray-600">{projectInfo.contractor}</p>
         </div>
         <div className="text-right">
-          <h2 className="text-lg font-bold">{projectInfo.period}</h2>
-          <p className="text-gray-500">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
+          <h2>{projectInfo.period}</h2>
+          <p>{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
         </div>
       </div>
-      <div className="mt-4 text-center">
-        <h3 className="text-xl font-bold uppercase border-2 border-gray-800 inline-block px-6 py-1">{title}</h3>
-      </div>
-    </div>
-  );
-
-  const SignatureBlock = () => (
-    <div className="mt-20 flex justify-between px-10 text-center break-inside-avoid">
-      <div className="border-t border-black pt-2 w-64">
-        <p className="font-bold">YÜKLENİCİ</p>
-        <p className="text-sm mt-8">(İmza / Kaşe)</p>
-      </div>
-      <div className="border-t border-black pt-2 w-64">
-        <p className="font-bold">KONTROL TEŞKİLATI</p>
-        <p className="text-sm mt-8">(İmza / Onay)</p>
+      <div className="text-center mt-4">
+        <span className="border-2 border-gray-800 px-4 py-1 font-bold text-lg rounded">
+          {title}
+        </span>
       </div>
     </div>
   );
 
   return (
-    <div className="print-container bg-white text-black font-serif text-sm w-[210mm] mx-auto">
+    <div className="bg-white w-full max-w-[210mm] mx-auto p-8 print:p-0 text-black font-serif text-sm">
       
-      {/* 1. SAYFA: METRAJ CETVELİ */}
-      <div className="p-8 bg-white min-h-[297mm] shadow-lg print:shadow-none mb-8 print:mb-0">
-        <ReportHeader title="METRAJ CETVELİ" />
+      {/* --------------------------------------------------------- */}
+      {/* BÖLÜM 1: DETAYLI METRAJ CETVELLERİ */}
+      {/* --------------------------------------------------------- */}
+      <div className="mb-12">
+        <Header title="METRAJ CETVELİ" />
         
-        <div className="space-y-6">
-          {items.map((item) => {
-             const itemTotal = calculateItemCurrentQuantity(item);
-             if (itemTotal === 0 && (!item.sheets || item.sheets.length === 0)) return null;
-
-             return (
-              <div key={item.id} className="break-inside-avoid mb-4">
-                <div className="bg-gray-100 p-2 border border-black font-bold flex justify-between">
-                  <span>{item.code} - {item.description}</span>
-                  <span>Birim: {item.unit}</span>
-                </div>
-                <table className="w-full border-collapse border-x border-b border-black text-xs">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="border-r border-b border-black px-2 py-1 w-1/3 text-left">Açıklama</th>
-                      <th className="border-r border-b border-black px-2 py-1 w-16 text-right">En</th>
-                      <th className="border-r border-b border-black px-2 py-1 w-16 text-right">Boy</th>
-                      <th className="border-r border-b border-black px-2 py-1 w-16 text-right">Yük.</th>
-                      <th className="border-r border-b border-black px-2 py-1 w-12 text-right">Adet</th>
-                      <th className="border-b border-black px-2 py-1 w-24 text-right">Ara Toplam</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {item.sheets?.map((sheet) => (
-                      <React.Fragment key={sheet.id}>
-                        {/* Optional Sub-header for Sheet Name if needed, or just list measurements */}
-                        <tr className="bg-gray-50 italic">
-                           <td colSpan={6} className="border-x border-black px-2 py-1 text-gray-600 font-semibold">{sheet.name}</td>
-                        </tr>
-                        {sheet.measurements.map((m) => (
-                          <tr key={m.id}>
-                            <td className="border-r border-gray-300 px-2 py-1">{m.description}</td>
-                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.width ?? '-'}</td>
-                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.length ?? '-'}</td>
-                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.height ?? '-'}</td>
-                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.count}</td>
-                            <td className="px-2 py-1 text-right">{formatNumber(calculateMeasurementTotal(m))}</td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                    <tr className="bg-gray-50 font-bold">
-                      <td colSpan={5} className="border-t border-r border-black px-2 py-1 text-right">TOPLAM</td>
-                      <td className="border-t border-black px-2 py-1 text-right">{formatNumber(itemTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+        <div className="space-y-8">
+          {sheets.map((sheet, index) => (
+            <div key={sheet.id} className="break-inside-avoid border border-black mb-6">
+              {/* Cetvel Başlığı */}
+              <div className="bg-gray-200 border-b border-black p-2 flex justify-between font-bold text-xs">
+                <span>{index + 1}. {sheet.groupName}</span>
+                <span>Poz: {sheet.code}</span>
               </div>
-            );
-          })}
+              
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 border-b border-black">
+                    <th className="border-r border-black p-1 text-left w-1/3">Açıklama</th>
+                    <th className="border-r border-black p-1 w-12">En</th>
+                    <th className="border-r border-black p-1 w-12">Boy</th>
+                    <th className="border-r border-black p-1 w-12">Yük.</th>
+                    <th className="border-r border-black p-1 w-10">Adet</th>
+                    <th className="p-1 w-20 text-right">Miktar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sheet.measurements.map((m) => (
+                    <tr key={m.id} className="border-b border-gray-300">
+                      <td className="border-r border-black p-1">{m.description}</td>
+                      <td className="border-r border-black p-1 text-center">{formatNumber(m.width)}</td>
+                      <td className="border-r border-black p-1 text-center">{formatNumber(m.length)}</td>
+                      <td className="border-r border-black p-1 text-center">{formatNumber(m.height)}</td>
+                      <td className="border-r border-black p-1 text-center font-bold">{formatNumber(m.count)}</td>
+                      <td className="p-1 text-right font-mono">{formatNumber(calculateMeasurementRow(m))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-100 font-bold">
+                    <td colSpan={5} className="border-t border-r border-black p-1 text-right">TOPLAM ({sheet.unit}):</td>
+                    <td className="border-t border-black p-1 text-right">{formatNumber(sheet.totalAmount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* 2. SAYFA: HAKEDİŞ ÖZETİ (Page Break Before) */}
-      <div className="print-break-before p-8 bg-white min-h-[297mm] shadow-lg print:shadow-none mb-8 print:mb-0">
-        <ReportHeader title="HAKEDİŞ ÖZETİ (YEŞİL DEFTER)" />
+      <div className="print-break-before"></div>
+
+      {/* --------------------------------------------------------- */}
+      {/* BÖLÜM 2: YEŞİL DEFTER (HAKEDİŞ ÖZETİ) */}
+      {/* --------------------------------------------------------- */}
+      <div className="min-h-[297mm]">
+        <Header title="YEŞİL DEFTER (İCMAL)" />
         
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
-            <tr className="bg-gray-100 text-center font-bold">
-              <th className="border border-black p-2 w-12">Sıra</th>
-              <th className="border border-black p-2 w-20">Poz No</th>
-              <th className="border border-black p-2 text-left">İşin Tanımı</th>
-              <th className="border border-black p-2 w-12">Birim</th>
-              <th className="border border-black p-2 w-24">Birim Fiyat</th>
-              <th className="border border-black p-2 w-20">Önceki Miktar</th>
-              <th className="border border-black p-2 w-20">Bu Dönem Miktar</th>
-              <th className="border border-black p-2 w-24">Toplam Miktar</th>
-              <th className="border border-black p-2 w-28">Bu Dönem Tutarı</th>
+            <tr className="bg-gray-200 font-bold text-center border-b border-black">
+              <th className="border-r border-black p-2">Poz No</th>
+              <th className="border-r border-black p-2">İşin Tanımı</th>
+              <th className="border-r border-black p-2">Birim</th>
+              <th className="border-r border-black p-2">B.Fiyat</th>
+              <th className="border-r border-black p-2 bg-yellow-50">Önceki</th>
+              <th className="border-r border-black p-2 bg-blue-50">Bu Dönem</th>
+              <th className="border-r border-black p-2">Toplam</th>
+              <th className="p-2">Tutar (TL)</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
-              const currentQty = calculateItemCurrentQuantity(item);
+            {groupedData.map((item) => {
+              const prevQty = previousQuantities[item.code] || 0;
+              const currentQty = item.totalQty - prevQty;
               const currentAmount = currentQty * item.unitPrice;
-              const totalQty = item.previousQuantity + currentQty;
 
               return (
-                <tr key={item.id} className="text-right hover:bg-gray-50">
-                  <td className="border border-black px-2 py-1 text-center">{index + 1}</td>
-                  <td className="border border-black px-2 py-1 text-center font-semibold">{item.code}</td>
-                  <td className="border border-black px-2 py-1 text-left">{item.description}</td>
-                  <td className="border border-black px-2 py-1 text-center">{item.unit}</td>
-                  <td className="border border-black px-2 py-1">{formatCurrency(item.unitPrice)}</td>
-                  <td className="border border-black px-2 py-1">{formatNumber(item.previousQuantity)}</td>
-                  <td className="border border-black px-2 py-1 font-bold">{formatNumber(currentQty)}</td>
-                  <td className="border border-black px-2 py-1 bg-gray-50">{formatNumber(totalQty)}</td>
-                  <td className="border border-black px-2 py-1 font-bold">{formatCurrency(currentAmount)}</td>
+                <tr key={item.code} className="border-b border-gray-400 hover:bg-gray-50">
+                  <td className="border-r border-black p-1 text-center font-bold">{item.code}</td>
+                  <td className="border-r border-black p-1">{item.description}</td>
+                  <td className="border-r border-black p-1 text-center">{item.unit}</td>
+                  <td className="border-r border-black p-1 text-right">{formatCurrency(item.unitPrice)}</td>
+                  <td className="border-r border-black p-1 text-right text-gray-500">{formatNumber(prevQty)}</td>
+                  <td className="border-r border-black p-1 text-right font-bold">{formatNumber(currentQty)}</td>
+                  <td className="border-r border-black p-1 text-right bg-gray-50">{formatNumber(item.totalQty)}</td>
+                  <td className="p-1 text-right font-bold">{formatCurrency(currentAmount)}</td>
                 </tr>
               );
             })}
-            {/* Grand Total Row for Summary Table */}
-             <tr className="bg-gray-100 font-bold text-right text-sm">
-                <td colSpan={8} className="border border-black p-2">TOPLAM BU DÖNEM İMALATI</td>
-                <td className="border border-black p-2">{formatCurrency(totalAmount)}</td>
-             </tr>
           </tbody>
+          <tfoot>
+            <tr className="bg-gray-800 text-white font-bold">
+              <td colSpan={7} className="p-2 text-right">TOPLAM BU DÖNEM İMALATI:</td>
+              <td className="p-2 text-right">{formatCurrency(grandTotalAmount)}</td>
+            </tr>
+          </tfoot>
         </table>
-        
-        <SignatureBlock />
-      </div>
 
-      {/* 3. SAYFA: FİNANSAL İCMAL (Page Break Before) */}
-      <div className="print-break-before p-8 bg-white min-h-[297mm] shadow-lg print:shadow-none flex flex-col justify-between">
-        <div>
-          <ReportHeader title="FİNANSAL İCMAL (ARKA KAPAK)" />
-          
-          <div className="mt-12 max-w-2xl mx-auto border-2 border-black p-1">
-            <div className="border border-black p-8 space-y-4">
-              
-              <div className="flex justify-between items-center text-lg pb-4 border-b border-dashed border-gray-400">
-                <span className="font-semibold text-gray-700">İmalat Tutarı (KDV Hariç)</span>
-                <span className="font-bold text-xl">{formatCurrency(totalAmount)}</span>
-              </div>
-              
-              <div className="flex justify-between items-center text-lg pb-4 border-b border-black">
-                <span className="font-semibold text-gray-700">KDV (%20)</span>
-                <span className="font-bold text-xl">{formatCurrency(kdv)}</span>
-              </div>
-              
-              <div className="flex justify-between items-center text-xl pt-4">
-                <span className="font-bold uppercase">Toplam Tahakkuk</span>
-                <span className="font-extrabold text-2xl bg-yellow-100 px-4 py-1 border border-black">{formatCurrency(grandTotal)}</span>
-              </div>
-
+        {/* İMZA BLOĞU */}
+        <div className="flex justify-between mt-20 px-10 text-center break-inside-avoid">
+            <div>
+                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">YÜKLENİCİ</p>
+                <p className="text-xs">Şirket Yetkilisi</p>
             </div>
-          </div>
-          
-          <div className="mt-12 text-center text-gray-500 italic">
-            <p>Yalnız; {formatCurrency(grandTotal)} ödenmesi uygundur.</p>
-          </div>
+            <div>
+                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">KONTROL</p>
+                <p className="text-xs">İnşaat Mühendisi</p>
+            </div>
+            <div>
+                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">ONAYLAYAN</p>
+                <p className="text-xs">İdare Yetkilisi</p>
+            </div>
         </div>
-
-        <SignatureBlock />
       </div>
-
     </div>
   );
 };
