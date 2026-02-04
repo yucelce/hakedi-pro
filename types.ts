@@ -20,10 +20,9 @@ export interface MeasurementSheet {
   calculatedCost: number;
 }
 
-// YENİ: İmza yetkilisi yapısı
 export interface Signatory {
-  title: string; // Örn: YÜKLENİCİ
-  name: string;  // Örn: Ali Veli
+  title: string;
+  name: string;
 }
 
 export interface ProjectInfo {
@@ -32,7 +31,21 @@ export interface ProjectInfo {
   employer: string;
   period: string;
   date: string;
-  signatories: Signatory[]; // YENİ EKLENEN ALAN
+  signatories: Signatory[];
+}
+
+// --- YENİ EKLENEN TİPLER ---
+export interface CoverRow {
+  id: string;
+  description: string;
+  prevAmount: number;    // Önceki Dönem Tutarı
+  currentAmount: number; // Bu Dönem Tutarı
+}
+
+export interface CoverData {
+  kdvRate: number;              // KDV Oranı
+  extraPayments: CoverRow[];    // A) Bölümüne eklenecek manuel satırlar
+  deductions: CoverRow[];       // B) Kesintiler bölümüne eklenecek manuel satırlar
 }
 
 export type TabView = 'input' | 'summary' | 'cover' | 'report' | 'settings';
