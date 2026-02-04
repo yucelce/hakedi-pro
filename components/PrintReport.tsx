@@ -94,15 +94,26 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
   // Toplam Sayfa Sayısı
   const totalPages = 3 + sheets.length;
 
-  // --- PDF İNDİRME FONKSİYONU (YENİ) ---
+ // --- PDF İNDİRME FONKSİYONU ---
   const handleDownloadPDF = () => {
     const element = document.getElementById('report-container');
+    
     const opt = {
-      margin:       0,
+      // Kenar boşluklarını sıfırlıyoruz ki kayma olmasın
+      margin:       0, 
       filename:     `${projectInfo.projectName.replace(/\s+/g, '_')}_Hakedis.pdf`,
+      
+      // Resim kalitesi ayarları
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
+      
+      // ÖNEMLİ: scale: 4 yaparak kaliteyi 4 kat artırıyoruz (HD görüntü)
+      // letterRendering: true yazıların daha keskin olmasını sağlar
+      html2canvas:  { scale: 4, useCORS: true, letterRendering: true, scrollY: 0 },
+      
+      // Sayfa formatı
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      
+      // Sayfa kırılımlarını CSS'e göre yap (boş sayfa oluşumunu engeller)
       pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
 

@@ -12,64 +12,75 @@
         color: #1e293b;
       }
 
-      /* --- RAPOR SAYFASI TASARIMI (PDF OLUŞTURUCU İÇİN) --- */
+      /* --- RAPOR SAYFASI TASARIMI --- */
       .report-page {
+        /* Ekrandaki Görünüm */
         width: 210mm;
-        min-height: 297mm;
+        min-height: 297mm; /* Ekranda A4 gibi dursun */
         padding: 20mm;
-        margin: 20px auto;
+        margin: 20px auto; /* Sayfalar arası boşluk */
         background: white;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
         box-sizing: border-box;
         position: relative;
         
-        /* Sayfa Bölme Kuralları */
+        /* Sayfa Bölme Kuralı */
         page-break-after: always;
         break-after: page;
       }
 
-      /* Son sayfadan sonra boş sayfa atmasını engelle */
+      /* Son sayfadan sonraki boşluğu engelle */
       .report-page:last-child {
         page-break-after: avoid !important;
         break-after: avoid !important;
         margin-bottom: 0;
       }
 
-      /* PDF oluşturucu için yardımcı sınıf */
-      .break-after-page {
-        page-break-after: always;
+      /* --- PDF OLUŞTURMA ANI İÇİN ÖZEL AYARLAR (Kritik Kısım) --- */
+      /* html2pdf çalıştığında bu kurallar devreye girer */
+      
+      /* Elementin ID'si report-container olduğu için bu çalışır */
+      #report-container .report-page {
+        margin: 0 !important;       /* Dış boşlukları sıfırla */
+        box-shadow: none !important; /* Gölgeleri kaldır */
+        border: none !important;     /* Kenarlıkları kaldır */
+        
+        /* Yüksekliği sabitleme, bırak kütüphane hesaplasın */
+        /* min-height: 297mm;  <-- Bunu iptal ediyoruz PDF modunda */
+        height: auto !important; 
       }
 
-      /* --- YAZDIRMA (PRINT) MODU İÇİN YEDEK AYARLAR --- */
+      /* YAZDIRMA (CTRL+P) MODU İÇİN */
       @media print {
         @page { size: A4; margin: 0; }
         body { background: white; -webkit-print-color-adjust: exact; }
         .no-print { display: none !important; }
-        
         .report-page {
           margin: 0 !important;
           box-shadow: none !important;
           page-break-after: always;
+          width: 100%;
+          min-height: auto;
         }
       }
 
-      /* Scrollbar Gizleme */
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
     
     <script type="importmap">
-    {
-      "imports": {
-        "react/": "https://esm.sh/react@^19.2.4/",
-        "react": "https://esm.sh/react@^19.2.4",
-        "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-        "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
-        "vite": "https://esm.sh/vite@^7.3.1"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "html2pdf.js": "https://esm.sh/html2pdf.js@^0.14.0"
+  }
+}
+</script>
   </head>
   <body class="bg-gray-50 text-slate-800">
     <div id="root"></div>
