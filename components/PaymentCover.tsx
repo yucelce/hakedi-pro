@@ -252,10 +252,8 @@ export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities, proj
          * Bu dönem hakedişi ile Yüklenici'ye ödenecek net tutardır. (Fatura Tutarı - Kesintiler)
       </div>
       
-      // components/PaymentCover.tsx dosyasının en altındaki İmza Bloğu kısmını bununla değiştirin:
-
-      {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) - DÜZELTİLMİŞ VERSİYON */}
-      <div className="hidden print:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 mt-20 px-4 mx-auto text-sm print:gap-x-2 w-full">
+      {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) - Max 4 Sütun */}
+      <div className="hidden print:grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 mt-20 px-8 mx-auto text-sm print:gap-x-4 w-full">
         {projectInfo.signatories.map((sig, index) => (
           <div key={index} className="text-center flex flex-col items-center min-w-0">
               {/* Unvan */}

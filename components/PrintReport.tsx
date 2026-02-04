@@ -167,19 +167,18 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           </tfoot>
         </table>
 
-        // components/PrintReport.tsx dosyasının en altındaki İmza Bloğu kısmını bununla değiştirin:
-
-        {/* DİNAMİK İMZA BLOĞU - DÜZELTİLMİŞ VERSİYON */}
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 mt-12 px-2 text-center break-inside-avoid print:grid-cols-6 print:gap-x-2">
+        {/* DİNAMİK İMZA BLOĞU - Max 4 Sütun Ayarı */}
+        {/* grid-cols-2 (mobil) -> md:grid-cols-4 (masaüstü/print) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 mt-12 px-2 text-center break-inside-avoid print:grid-cols-4">
           {projectInfo.signatories.map((sig, index) => (
             <div key={index} className="flex flex-col items-center min-w-0">
-                {/* Unvan Alanı: Kelimeleri kırmak için break-words eklendi */}
+                {/* Unvan Alanı */}
                 <div className="w-full border-b border-black pb-1 mb-2 min-h-[30px] flex items-end justify-center">
                    <p className="font-bold uppercase text-[10px] md:text-xs break-words w-full px-1">
                      {sig.title}
                    </p>
                 </div>
-                {/* İsim Alanı: Tek satır zorlaması kaldırıldı */}
+                {/* İsim Alanı */}
                 <p className="text-[10px] md:text-xs break-words w-full px-1">
                   {sig.name ? sig.name : '...................................'}
                 </p>
