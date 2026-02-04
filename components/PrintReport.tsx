@@ -1,3 +1,4 @@
+// components/PrintReport.tsx
 import React, { useMemo } from 'react';
 import { MeasurementSheet, ProjectInfo, CoverData } from '../types';
 import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
@@ -6,109 +7,95 @@ interface Props {
   sheets: MeasurementSheet[];
   projectInfo: ProjectInfo;
   previousQuantities: Record<string, number>;
-  coverData: CoverData; // Arka kapak verileri için eklendi
+  coverData: CoverData;
 }
 
 export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuantities, coverData }) => {
 
-  // --- HESAPLAMALAR (Arka Kapak İçin) ---
+  // --- HESAPLAMALAR (Aynen kalıyor, kod tekrarı olmasın diye burayı kısalttım) ---
+  // ... workDone, extraTotals, deductionTotals, totalAmountA, kdvAmount, invoiceAmount, netPayable hesaplamaları ...
+  // ... groupedData, grandTotalAmount hesaplamaları ...
+  // (Lütfen buradaki hesaplama mantığınızı koruyun)
+  
+  // --- HESAPLAMALARIN TEKRARI (Sizdeki mevcut kodun aynısı kalacak) ---
   const workDone = useMemo(() => {
     let totalGeneral = 0;
     let totalPrev = 0;
-    
     sheets.forEach(sheet => {
-      const itemTotal = sheet.totalAmount * sheet.unitPrice;
-      totalGeneral += itemTotal;
+      totalGeneral += sheet.totalAmount * sheet.unitPrice;
       const prevQty = previousQuantities[sheet.code] || 0;
       totalPrev += prevQty * sheet.unitPrice;
     });
-
-    return { 
-      general: totalGeneral, 
-      prev: totalPrev, 
-      current: totalGeneral - totalPrev 
-    };
+    return { general: totalGeneral, prev: totalPrev, current: totalGeneral - totalPrev };
   }, [sheets, previousQuantities]);
 
   const extraTotals = useMemo(() => {
-    let prev = 0, current = 0;
-    coverData.extraPayments.forEach(item => {
-      prev += item.prevAmount || 0;
-      current += item.currentAmount || 0;
-    });
-    return { prev, current, general: prev + current };
-  }, [coverData.extraPayments]);
+      let prev = 0, current = 0;
+      coverData.extraPayments.forEach(item => {
+        prev += item.prevAmount || 0;
+        current += item.currentAmount || 0;
+      });
+      return { prev, current, general: prev + current };
+    }, [coverData.extraPayments]);
+  
+    const deductionTotals = useMemo(() => {
+      let prev = 0, current = 0;
+      coverData.deductions.forEach(item => {
+        prev += item.prevAmount || 0;
+        current += item.currentAmount || 0;
+      });
+      return { prev, current, general: prev + current };
+    }, [coverData.deductions]);
+  
+    const totalAmountA = {
+      prev: workDone.prev + extraTotals.prev,
+      current: workDone.current + extraTotals.current,
+      general: workDone.general + extraTotals.general
+    };
+  
+    const kdvAmount = {
+      prev: totalAmountA.prev * (coverData.kdvRate / 100),
+      current: totalAmountA.current * (coverData.kdvRate / 100),
+      general: totalAmountA.general * (coverData.kdvRate / 100)
+    };
+  
+    const invoiceAmount = {
+      prev: totalAmountA.prev + kdvAmount.prev,
+      current: totalAmountA.current + kdvAmount.current,
+      general: totalAmountA.general + kdvAmount.general
+    };
+  
+    const netPayable = {
+      prev: invoiceAmount.prev - deductionTotals.prev,
+      current: invoiceAmount.current - deductionTotals.current,
+      general: invoiceAmount.general - deductionTotals.general
+    };
 
-  const deductionTotals = useMemo(() => {
-    let prev = 0, current = 0;
-    coverData.deductions.forEach(item => {
-      prev += item.prevAmount || 0;
-      current += item.currentAmount || 0;
-    });
-    return { prev, current, general: prev + current };
-  }, [coverData.deductions]);
+    const groupedData = useMemo(() => {
+        const groups: Record<string, any> = {};
+        sheets.forEach(sheet => {
+          if (!groups[sheet.code]) {
+            groups[sheet.code] = {
+              code: sheet.code,
+              description: sheet.description || sheet.groupName,
+              unit: sheet.unit,
+              unitPrice: sheet.unitPrice,
+              totalQty: 0
+            };
+          }
+          groups[sheet.code].totalQty += sheet.totalAmount;
+        });
+        return Object.values(groups);
+      }, [sheets]);
+    
+      const grandTotalAmount = groupedData.reduce((acc, item) => {
+        const prevQty = previousQuantities[item.code] || 0;
+        const currentQty = item.totalQty - prevQty;
+        return acc + (currentQty * item.unitPrice);
+      }, 0);
 
-  // A) Toplam Hakediş Tutarı
-  const totalAmountA = {
-    prev: workDone.prev + extraTotals.prev,
-    current: workDone.current + extraTotals.current,
-    general: workDone.general + extraTotals.general
-  };
 
-  // KDV
-  const kdvAmount = {
-    prev: totalAmountA.prev * (coverData.kdvRate / 100),
-    current: totalAmountA.current * (coverData.kdvRate / 100),
-    general: totalAmountA.general * (coverData.kdvRate / 100)
-  };
-
-  // Fatura
-  const invoiceAmount = {
-    prev: totalAmountA.prev + kdvAmount.prev,
-    current: totalAmountA.current + kdvAmount.current,
-    general: totalAmountA.general + kdvAmount.general
-  };
-
-  // Net Ödenecek
-  const netPayable = {
-    prev: invoiceAmount.prev - deductionTotals.prev,
-    current: invoiceAmount.current - deductionTotals.current,
-    general: invoiceAmount.general - deductionTotals.general
-  };
-
-  // --- HESAPLAMALAR (İcmal/Metraj İçin) ---
-  const groupedData = useMemo(() => {
-    const groups: Record<string, {
-      code: string;
-      description: string;
-      unit: string;
-      unitPrice: number;
-      totalQty: number;
-    }> = {};
-
-    sheets.forEach(sheet => {
-      if (!groups[sheet.code]) {
-        groups[sheet.code] = {
-          code: sheet.code,
-          description: sheet.description || sheet.groupName,
-          unit: sheet.unit,
-          unitPrice: sheet.unitPrice,
-          totalQty: 0
-        };
-      }
-      groups[sheet.code].totalQty += sheet.totalAmount;
-    });
-
-    return Object.values(groups);
-  }, [sheets]);
-
-  const grandTotalAmount = groupedData.reduce((acc, item) => {
-    const prevQty = previousQuantities[item.code] || 0;
-    const currentQty = item.totalQty - prevQty;
-    return acc + (currentQty * item.unitPrice);
-  }, 0);
-
-  // --- ALT BİLEŞENLER ---
+  // --- HEADER BİLEŞENİ ---
   const Header = ({ title }: { title: string }) => (
     <div className="border-b-2 border-gray-800 pb-2 mb-6">
       <div className="flex justify-between uppercase font-bold text-xs">
@@ -130,10 +117,10 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
   );
 
   const SignatureBlock = () => (
-    <div className="grid grid-cols-4 gap-4 mt-16 px-4 text-center break-inside-avoid">
+    <div className="grid grid-cols-3 gap-4 mt-auto pt-12 px-4 text-center break-inside-avoid">
       {(projectInfo.signatories || []).map((sig, index) => (
         <div key={index} className="flex flex-col items-center">
-            <div className="w-full border-b border-black pb-1 mb-4 min-h-[20px] flex items-end justify-center">
+            <div className="w-full border-b border-black pb-1 mb-8 min-h-[20px] flex items-end justify-center">
                <p className="font-bold uppercase text-[10px]">{sig.title}</p>
             </div>
             <p className="text-[10px]">{sig.name}</p>
@@ -143,10 +130,12 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
   );
 
   return (
-    <div className="bg-white w-full max-w-[210mm] mx-auto text-black font-serif text-xs leading-tight">
+    <div className="w-full bg-gray-100 print:bg-white pb-10 print:pb-0 font-serif text-black">
       
-      {/* 1. ÖN KAPAK */}
-      <div className="h-[297mm] flex flex-col justify-center items-center relative text-center border-4 border-double border-gray-800 p-12 mb-8 print:mb-0">
+      {/* --------------------------------------------------------- */}
+      {/* SAYFA 1: ÖN KAPAK */}
+      {/* --------------------------------------------------------- */}
+      <div className="report-page flex flex-col justify-center items-center text-center border-4 border-double border-gray-800">
           <div className="absolute top-12 right-12 text-right">
              <p className="text-sm font-bold">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
           </div>
@@ -156,7 +145,7 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           <div className="w-full max-w-lg space-y-8 text-left">
               <div>
                   <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">PROJE ADI</p>
-                  <p className="text-2xl font-bold border-b border-gray-400 pb-2">{projectInfo.projectName}</p>
+                  <p className="text-xl font-bold border-b border-gray-400 pb-2">{projectInfo.projectName}</p>
               </div>
               <div>
                   <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YÜKLENİCİ FİRMA</p>
@@ -173,13 +162,13 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           </div>
       </div>
 
-      <div className="print-break-before block"></div>
-
-      {/* 2. ARKA KAPAK */}
-      <div className="min-h-[297mm] flex flex-col pt-8">
+      {/* --------------------------------------------------------- */}
+      {/* SAYFA 2: ARKA KAPAK */}
+      {/* --------------------------------------------------------- */}
+      <div className="report-page flex flex-col">
         <Header title="HAKEDİŞ ARKA KAPAĞI" />
         
-        <div className="border-2 border-black text-[11px]">
+        <div className="border-2 border-black text-[11px] flex-grow-0">
              {/* Header Row */}
              <div className="grid grid-cols-12 bg-gray-200 font-bold border-b-2 border-black text-center">
                 <div className="col-span-4 p-2 border-r border-black">AÇIKLAMA</div>
@@ -281,10 +270,10 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         <SignatureBlock />
       </div>
 
-      <div className="print-break-before block"></div>
-
-      {/* 3. İCMAL (YEŞİL DEFTER) */}
-      <div className="min-h-[297mm] flex flex-col pt-8">
+      {/* --------------------------------------------------------- */}
+      {/* SAYFA 3: İCMAL (YEŞİL DEFTER) */}
+      {/* --------------------------------------------------------- */}
+      <div className="report-page flex flex-col">
         <Header title="HAKEDİŞ ÖZETİ (İCMAL)" />
         
         <table className="w-full border-collapse border border-black text-xs">
@@ -331,10 +320,14 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         <SignatureBlock />
       </div>
 
-      <div className="print-break-before block"></div>
-
-      {/* 4. METRAJ CETVELLERİ */}
-      <div className="min-h-[297mm] flex flex-col pt-8">
+      {/* --------------------------------------------------------- */}
+      {/* SAYFA 4: METRAJ CETVELLERİ */}
+      {/* --------------------------------------------------------- */}
+      {/* Metrajlar uzun olabilir, bunları tek bir page container'a sığdırmak yerine, akışına bırakıp CSS'e emanet ediyoruz veya her cetveli yeni sayfada başlatıyoruz */}
+      {/* Ancak en temiz yöntem, metrajları da report-page içine almaktır. Eğer metraj çok uzunsa ve sığmıyorsa yeni sayfa açılmalıdır. */}
+      {/* Basit çözüm: Metrajları da report-page içine koyuyoruz, overflow olursa print stilimiz bunu bölecektir. */}
+      
+      <div className="report-page block">
         <Header title="METRAJ CETVELLERİ" />
         
         <div className="space-y-6">
