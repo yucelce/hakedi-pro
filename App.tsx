@@ -4,20 +4,20 @@ import { InputSection } from './components/InputSection';
 import { PaymentSummary } from './components/PaymentSummary';
 import { PaymentCover } from './components/PaymentCover';
 import { PrintReport } from './components/PrintReport';
+import { ProjectSettings } from './components/ProjectSettings'; // YENİ
 import { generateId } from './utils';
 import { 
-  Printer, Calculator, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, X, Save
+  Printer, Calculator, LayoutDashboard, ClipboardList, BookOpenCheck, Settings
 } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- STATE YÖNETİMİ ---
   const [activeTab, setActiveTab] = useState<TabView>('input');
-  const [showProjectSettings, setShowProjectSettings] = useState(false);
   
   // Hakediş Özeti için Önceki Dönem Miktarları
   const [previousQuantities, setPreviousQuantities] = useState<Record<string, number>>({});
 
-  // Proje Genel Bilgileri (Rapor Başlıkları İçin)
+  // Proje Genel Bilgileri
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>({
     projectName: 'ORNEK KONUT PROJESİ İNŞAATI',
     contractor: 'DEMİR İNŞAAT TAAHHÜT LTD. ŞTİ.',
@@ -48,28 +48,29 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
           
           {/* Logo ve Başlık */}
-          <div className="flex items-center gap-3 w-full md:w-auto justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                <Calculator size={20} className="text-white" />
-              </div>
-              <h1 className="text-lg font-bold">Hakediş Pro</h1>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="bg-blue-600 p-1.5 rounded-lg">
+              <Calculator size={20} className="text-white" />
             </div>
-            
-            {/* Mobilde Ayarlar Butonu */}
-            <button 
-              onClick={() => setShowProjectSettings(true)}
-              className="md:hidden text-slate-400 hover:text-white"
-            >
-              <Settings size={20} />
-            </button>
+            <h1 className="text-lg font-bold">Hakediş Pro</h1>
           </div>
           
           {/* Navigasyon */}
           <nav className="flex bg-slate-800 rounded-lg p-1 gap-1 overflow-x-auto max-w-full no-scrollbar">
+            
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'settings' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+            >
+              <Settings size={18} /> 
+              <span className="hidden sm:inline">Proje Bilgileri</span>
+            </button>
+
+            <div className="w-px h-6 bg-slate-700 mx-1 self-center hidden sm:block"></div>
+
             <button
               onClick={() => setActiveTab('input')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'input' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'input' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
             >
               <LayoutDashboard size={18} /> 
               <span className="hidden sm:inline">Metraj Girişi</span>
@@ -77,7 +78,7 @@ const App: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('summary')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'summary' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'summary' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
             >
               <ClipboardList size={18} /> 
               <span className="hidden sm:inline">Hakediş Özeti</span>
@@ -85,7 +86,7 @@ const App: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('cover')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'cover' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'cover' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
             >
               <BookOpenCheck size={18} /> 
               <span className="hidden sm:inline">Arka Kapak</span>
@@ -93,21 +94,12 @@ const App: React.FC = () => {
             
             <button
               onClick={() => setActiveTab('report')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'report' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'report' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
             >
               <Printer size={18} /> 
               <span className="hidden sm:inline">Raporla</span>
             </button>
           </nav>
-
-          {/* Masaüstü Ayarlar Butonu */}
-          <button 
-            onClick={() => setShowProjectSettings(true)}
-            className="hidden md:flex items-center gap-2 text-slate-400 hover:text-white transition px-2"
-            title="Proje Ayarları"
-          >
-            <Settings size={20} />
-          </button>
         </div>
       </header>
 
@@ -115,6 +107,10 @@ const App: React.FC = () => {
       <main className="flex-grow p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           
+          {activeTab === 'settings' && (
+             <ProjectSettings projectInfo={projectInfo} setProjectInfo={setProjectInfo} />
+          )}
+
           {activeTab === 'input' && (
              <InputSection items={sheets} setItems={setSheets} />
           )}
@@ -162,82 +158,6 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
-
-      {/* --- PROJE AYARLARI MODALI --- */}
-      {showProjectSettings && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm no-print">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Settings size={20} /> Proje Bilgileri
-              </h3>
-              <button onClick={() => setShowProjectSettings(false)} className="text-slate-400 hover:text-white transition">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Proje Adı</label>
-                <input 
-                  type="text" 
-                  value={projectInfo.projectName}
-                  onChange={e => setProjectInfo({...projectInfo, projectName: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Yüklenici Firma</label>
-                <input 
-                  type="text" 
-                  value={projectInfo.contractor}
-                  onChange={e => setProjectInfo({...projectInfo, contractor: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">İdare / İşveren</label>
-                <input 
-                  type="text" 
-                  value={projectInfo.employer}
-                  onChange={e => setProjectInfo({...projectInfo, employer: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Dönem</label>
-                  <input 
-                    type="text" 
-                    value={projectInfo.period}
-                    onChange={e => setProjectInfo({...projectInfo, period: e.target.value})}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tarih</label>
-                  <input 
-                    type="date" 
-                    value={projectInfo.date}
-                    onChange={e => setProjectInfo({...projectInfo, date: e.target.value})}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
-              <button 
-                onClick={() => setShowProjectSettings(false)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-sm transition flex items-center gap-2"
-              >
-                <Save size={16} /> Kaydet & Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
