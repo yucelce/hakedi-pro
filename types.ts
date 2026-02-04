@@ -1,28 +1,35 @@
 export interface Measurement {
   id: string;
   description: string;
-  width: number; // En
-  length: number; // Boy
-  height: number; // Yükseklik
-  count: number; // Adet (Benzer)
+  width: number | undefined;
+  length: number | undefined;
+  height: number | undefined;
+  count: number;
+  subtotal: number;
 }
 
-export interface WorkItem {
+// Artık her şey bu yapıda tutulacak
+export interface MeasurementSheet {
   id: string;
-  code: string; // Poz No (örn: 15.120.100)
-  description: string; // Tanım
-  unit: string; // Birim (m3, m2, vb)
-  unitPrice: number; // Birim Fiyat
-  previousQuantity: number; // Önceki Miktar (Kümülatiften gelen)
-  measurements: Measurement[]; // Metraj satırları
+  groupName: string;   // Örn: "A Blok Temel" (Ekranda görünecek ana başlık)
+  code: string;        // Örn: "15.120.100" (Raporlama için)
+  description: string; // Örn: "C25/30 Hazır Beton" (Teknik tanım)
+  unit: string;        // Birim
+  unitPrice: number;   // Birim Fiyat (Gizli)
+  measurements: Measurement[];
+  totalAmount: number;
+  calculatedCost: number;
 }
 
 export interface ProjectInfo {
   projectName: string;
-  contractor: string; // Yüklenici
-  employer: string; // İdare/İşveren
-  period: string; // Hakediş Dönemi (örn: 1 Nolu Hakediş)
+  contractor: string;
+  employer: string;
+  period: string;
   date: string;
 }
 
-export type TabView = 'input' | 'report';
+// types.ts
+export type TabView = 'input' | 'summary' | 'cover' | 'report';
+
+// Diğer tipler (MeasurementSheet, Measurement vb.) aynı kalıyor.

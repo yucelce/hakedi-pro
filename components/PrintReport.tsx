@@ -1,6 +1,6 @@
 import React from 'react';
 import { WorkItem, ProjectInfo } from '../types';
-import { calculateItemCurrentQuantity, calculateItemCurrentAmount, calculateMeasurementTotal, formatNumber, formatCurrency } from '../utils';
+import { calculateItemCurrentQuantity, calculateMeasurementTotal, formatNumber, formatCurrency } from '../utils';
 
 interface PrintReportProps {
   items: WorkItem[];
@@ -11,28 +11,7 @@ export const PrintReport: React.FC<PrintReportProps> = ({ items, projectInfo }) 
   
   // Calculate Grand Totals
   const totalAmount = items.reduce((acc, item) => {
-    // Total Quantity = Previous + Current
     const currentQty = calculateItemCurrentQuantity(item);
-    // Calculation: (Prev + Curr) * Price
-    // Typically Hakedis shows Cumulative Total. 
-    // Let's assume standard Progress Payment structure:
-    // We need "This Period Amount".
-    
-    // HOWEVER, the user prompt asked specifically:
-    // "İmalat Tutarı: Tüm kalemlerin toplamı." -> This usually implies Cumulative or This Period depending on context.
-    // Given "OncekiMiktar" exists, let's calculate THIS PERIOD amount for the financial summary based on "Bu Dönem İmalatı".
-    // Or if it's a "Total Progress Report", it sums everything up to date.
-    
-    // User Prompt Logic:
-    // "Toplam Miktar: OncekiMiktar + BuDonemMiktarı"
-    // "Bu Dönem Tutarı: BuDonemMiktarı * BirimFiyat" -> This is strictly this period.
-    // But "Finansal İcmal" usually sums up the cumulative work done to get the "Total accrued to date", 
-    // then subtracts previous payments. 
-    // Let's stick to the USER'S explicit instructions:
-    // "Bu Dönem Tutarı: BuDonemMiktarı * BirimFiyat" 
-    // "Arka Kapak... İmalat Tutarı: Tüm kalemlerin toplamı." (Likely meaning total of the rows in Summary).
-    
-    // Let's allow flexibility. I will interpret "İmalat Tutarı" as the sum of "Bu Dönem Tutarı" for this specific report period.
     return acc + (currentQty * item.unitPrice);
   }, 0);
 
@@ -80,7 +59,7 @@ export const PrintReport: React.FC<PrintReportProps> = ({ items, projectInfo }) 
         <div className="space-y-6">
           {items.map((item) => {
              const itemTotal = calculateItemCurrentQuantity(item);
-             if (itemTotal === 0 && item.measurements.length === 0) return null; // Skip empty items
+             if (itemTotal === 0 && (!item.sheets || item.sheets.length === 0)) return null;
 
              return (
               <div key={item.id} className="break-inside-avoid mb-4">
@@ -96,19 +75,27 @@ export const PrintReport: React.FC<PrintReportProps> = ({ items, projectInfo }) 
                       <th className="border-r border-b border-black px-2 py-1 w-16 text-right">Boy</th>
                       <th className="border-r border-b border-black px-2 py-1 w-16 text-right">Yük.</th>
                       <th className="border-r border-b border-black px-2 py-1 w-12 text-right">Adet</th>
-                      <th className="border-b border-black px-2 py-1 w-24 text-right">Miktar</th>
+                      <th className="border-b border-black px-2 py-1 w-24 text-right">Ara Toplam</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {item.measurements.map((m) => (
-                      <tr key={m.id}>
-                        <td className="border-r border-gray-300 px-2 py-1">{m.description}</td>
-                        <td className="border-r border-gray-300 px-2 py-1 text-right">{m.width || '-'}</td>
-                        <td className="border-r border-gray-300 px-2 py-1 text-right">{m.length || '-'}</td>
-                        <td className="border-r border-gray-300 px-2 py-1 text-right">{m.height || '-'}</td>
-                        <td className="border-r border-gray-300 px-2 py-1 text-right">{m.count}</td>
-                        <td className="px-2 py-1 text-right">{formatNumber(calculateMeasurementTotal(m))}</td>
-                      </tr>
+                    {item.sheets?.map((sheet) => (
+                      <React.Fragment key={sheet.id}>
+                        {/* Optional Sub-header for Sheet Name if needed, or just list measurements */}
+                        <tr className="bg-gray-50 italic">
+                           <td colSpan={6} className="border-x border-black px-2 py-1 text-gray-600 font-semibold">{sheet.name}</td>
+                        </tr>
+                        {sheet.measurements.map((m) => (
+                          <tr key={m.id}>
+                            <td className="border-r border-gray-300 px-2 py-1">{m.description}</td>
+                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.width ?? '-'}</td>
+                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.length ?? '-'}</td>
+                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.height ?? '-'}</td>
+                            <td className="border-r border-gray-300 px-2 py-1 text-right">{m.count}</td>
+                            <td className="px-2 py-1 text-right">{formatNumber(calculateMeasurementTotal(m))}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ))}
                     <tr className="bg-gray-50 font-bold">
                       <td colSpan={5} className="border-t border-r border-black px-2 py-1 text-right">TOPLAM</td>
