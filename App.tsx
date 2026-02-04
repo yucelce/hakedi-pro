@@ -118,7 +118,12 @@ const App: React.FC = () => {
                     <Printer size={18} /> Yazdır
                   </button>
               </div>
-              <PrintReport sheets={sheets} projectInfo={projectInfo} previousQuantities={previousQuantities} />
+              <PrintReport 
+                  sheets={sheets} 
+                  projectInfo={projectInfo} 
+                  previousQuantities={previousQuantities}
+                  coverData={coverData} // <-- BU SATIRI EKLEYİN
+              />
             </div>
           )}
         </div>

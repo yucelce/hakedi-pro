@@ -1,16 +1,82 @@
 import React, { useMemo } from 'react';
-import { MeasurementSheet, ProjectInfo } from '../types';
+import { MeasurementSheet, ProjectInfo, CoverData } from '../types';
 import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
 
 interface Props {
   sheets: MeasurementSheet[];
   projectInfo: ProjectInfo;
   previousQuantities: Record<string, number>;
+  coverData: CoverData; // Arka kapak verileri için eklendi
 }
 
-export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuantities }) => {
+export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuantities, coverData }) => {
 
-  // --- HESAPLAMALAR ---
+  // --- HESAPLAMALAR (Arka Kapak İçin) ---
+  const workDone = useMemo(() => {
+    let totalGeneral = 0;
+    let totalPrev = 0;
+    
+    sheets.forEach(sheet => {
+      const itemTotal = sheet.totalAmount * sheet.unitPrice;
+      totalGeneral += itemTotal;
+      const prevQty = previousQuantities[sheet.code] || 0;
+      totalPrev += prevQty * sheet.unitPrice;
+    });
+
+    return { 
+      general: totalGeneral, 
+      prev: totalPrev, 
+      current: totalGeneral - totalPrev 
+    };
+  }, [sheets, previousQuantities]);
+
+  const extraTotals = useMemo(() => {
+    let prev = 0, current = 0;
+    coverData.extraPayments.forEach(item => {
+      prev += item.prevAmount || 0;
+      current += item.currentAmount || 0;
+    });
+    return { prev, current, general: prev + current };
+  }, [coverData.extraPayments]);
+
+  const deductionTotals = useMemo(() => {
+    let prev = 0, current = 0;
+    coverData.deductions.forEach(item => {
+      prev += item.prevAmount || 0;
+      current += item.currentAmount || 0;
+    });
+    return { prev, current, general: prev + current };
+  }, [coverData.deductions]);
+
+  // A) Toplam Hakediş Tutarı
+  const totalAmountA = {
+    prev: workDone.prev + extraTotals.prev,
+    current: workDone.current + extraTotals.current,
+    general: workDone.general + extraTotals.general
+  };
+
+  // KDV
+  const kdvAmount = {
+    prev: totalAmountA.prev * (coverData.kdvRate / 100),
+    current: totalAmountA.current * (coverData.kdvRate / 100),
+    general: totalAmountA.general * (coverData.kdvRate / 100)
+  };
+
+  // Fatura
+  const invoiceAmount = {
+    prev: totalAmountA.prev + kdvAmount.prev,
+    current: totalAmountA.current + kdvAmount.current,
+    general: totalAmountA.general + kdvAmount.general
+  };
+
+  // Net Ödenecek
+  const netPayable = {
+    prev: invoiceAmount.prev - deductionTotals.prev,
+    current: invoiceAmount.current - deductionTotals.current,
+    general: invoiceAmount.general - deductionTotals.general
+  };
+
+  // --- HESAPLAMALAR (İcmal/Metraj İçin) ---
   const groupedData = useMemo(() => {
     const groups: Record<string, {
       code: string;
@@ -42,9 +108,9 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
     return acc + (currentQty * item.unitPrice);
   }, 0);
 
-  // --- HEADER BİLEŞENİ ---
+  // --- ALT BİLEŞENLER ---
   const Header = ({ title }: { title: string }) => (
-    <div className="border-b-2 border-gray-800 pb-2 mb-4 break-inside-avoid">
+    <div className="border-b-2 border-gray-800 pb-2 mb-6">
       <div className="flex justify-between uppercase font-bold text-xs">
         <div>
           <h1 className="text-sm md:text-base">{projectInfo.projectName}</h1>
@@ -55,28 +121,225 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           <p className="text-xs">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
         </div>
       </div>
-      <div className="text-center mt-2">
-        <span className="border border-gray-800 px-4 py-1 font-bold text-sm rounded bg-gray-50">
+      <div className="text-center mt-4">
+        <span className="border-2 border-gray-800 px-6 py-2 font-bold text-base rounded bg-gray-50 uppercase tracking-widest">
           {title}
         </span>
       </div>
     </div>
   );
 
+  const SignatureBlock = () => (
+    <div className="grid grid-cols-4 gap-4 mt-16 px-4 text-center break-inside-avoid">
+      {(projectInfo.signatories || []).map((sig, index) => (
+        <div key={index} className="flex flex-col items-center">
+            <div className="w-full border-b border-black pb-1 mb-4 min-h-[20px] flex items-end justify-center">
+               <p className="font-bold uppercase text-[10px]">{sig.title}</p>
+            </div>
+            <p className="text-[10px]">{sig.name}</p>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    // width ve padding ayarları güncellendi
-    <div className="bg-white w-full print:w-full max-w-[210mm] mx-auto p-8 print:p-0 text-black font-serif text-xs md:text-sm">
+    <div className="bg-white w-full max-w-[210mm] mx-auto text-black font-serif text-xs leading-tight">
       
-      {/* --------------------------------------------------------- */}
-      {/* BÖLÜM 1: DETAYLI METRAJ CETVELLERİ */}
-      {/* --------------------------------------------------------- */}
-      <div className="print:mb-0">
-        <Header title="METRAJ CETVELİ" />
+      {/* 1. ÖN KAPAK */}
+      <div className="h-[297mm] flex flex-col justify-center items-center relative text-center border-4 border-double border-gray-800 p-12 mb-8 print:mb-0">
+          <div className="absolute top-12 right-12 text-right">
+             <p className="text-sm font-bold">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
+          </div>
+          
+          <h1 className="text-5xl font-bold mb-24 tracking-widest border-b-4 border-gray-900 pb-4">HAKEDİŞ RAPORU</h1>
+
+          <div className="w-full max-w-lg space-y-8 text-left">
+              <div>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">PROJE ADI</p>
+                  <p className="text-2xl font-bold border-b border-gray-400 pb-2">{projectInfo.projectName}</p>
+              </div>
+              <div>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YÜKLENİCİ FİRMA</p>
+                  <p className="text-xl font-bold border-b border-gray-400 pb-2">{projectInfo.contractor}</p>
+              </div>
+              <div>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">İŞVEREN (İDARE)</p>
+                  <p className="text-xl font-bold border-b border-gray-400 pb-2">{projectInfo.employer}</p>
+              </div>
+              <div>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">HAKEDİŞ NO (DÖNEM)</p>
+                  <p className="text-xl font-bold border-b border-gray-400 pb-2">{projectInfo.period}</p>
+              </div>
+          </div>
+      </div>
+
+      <div className="print-break-before block"></div>
+
+      {/* 2. ARKA KAPAK */}
+      <div className="min-h-[297mm] flex flex-col pt-8">
+        <Header title="HAKEDİŞ ARKA KAPAĞI" />
+        
+        <div className="border-2 border-black text-[11px]">
+             {/* Header Row */}
+             <div className="grid grid-cols-12 bg-gray-200 font-bold border-b-2 border-black text-center">
+                <div className="col-span-4 p-2 border-r border-black">AÇIKLAMA</div>
+                <div className="col-span-2 p-2 border-r border-black">GENEL TOPLAM</div>
+                <div className="col-span-3 p-2 border-r border-black">ÖNCEKİ HAKEDİŞ</div>
+                <div className="col-span-3 p-2">BU HAKEDİŞ</div>
+             </div>
+
+             {/* A) ÖDEMELER */}
+             <div className="p-2 font-bold bg-gray-100 border-b border-black">A) ÖDEMELER</div>
+
+             {/* 1. Yapılan İşler */}
+             <div className="grid grid-cols-12 border-b border-gray-300">
+                <div className="col-span-4 p-2 border-r border-black font-semibold">1. Yapılan İşler Tutarı</div>
+                <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(workDone.general)}</div>
+                <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(workDone.prev)}</div>
+                <div className="col-span-3 p-2 text-right font-bold">{formatNumber(workDone.current)}</div>
+             </div>
+
+             {/* Ek Ödemeler Loop */}
+             {coverData.extraPayments.map((row, idx) => (
+                <div key={idx} className="grid grid-cols-12 border-b border-gray-300">
+                   <div className="col-span-4 p-1 pl-4 border-r border-black flex">
+                      <span className="mr-1">{idx + 2}.</span> {row.description}
+                   </div>
+                   <div className="col-span-2 p-1 border-r border-black text-right text-gray-600">
+                      {formatNumber((row.prevAmount||0) + (row.currentAmount||0))}
+                   </div>
+                   <div className="col-span-3 p-1 border-r border-black text-right text-gray-600">
+                      {formatNumber(row.prevAmount)}
+                   </div>
+                   <div className="col-span-3 p-1 text-right font-bold">
+                      {formatNumber(row.currentAmount)}
+                   </div>
+                </div>
+             ))}
+
+             {/* Toplam Matrah */}
+             <div className="grid grid-cols-12 border-b border-black bg-gray-50 font-bold">
+                <div className="col-span-4 p-2 border-r border-black text-right pr-2">TOPLAM (Matrah) :</div>
+                <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(totalAmountA.general)}</div>
+                <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(totalAmountA.prev)}</div>
+                <div className="col-span-3 p-2 text-right">{formatNumber(totalAmountA.current)}</div>
+             </div>
+
+             {/* KDV */}
+             <div className="grid grid-cols-12 border-b border-black">
+                <div className="col-span-4 p-2 border-r border-black text-right pr-2">KDV (%{coverData.kdvRate}) :</div>
+                <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(kdvAmount.general)}</div>
+                <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(kdvAmount.prev)}</div>
+                <div className="col-span-3 p-2 text-right">{formatNumber(kdvAmount.current)}</div>
+             </div>
+
+             {/* Fatura Tutarı */}
+             <div className="grid grid-cols-12 border-b-2 border-black bg-blue-50 font-bold">
+                <div className="col-span-4 p-2 border-r border-black text-right pr-2">HAKEDİŞ FATURA TUTARI :</div>
+                <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(invoiceAmount.general)}</div>
+                <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(invoiceAmount.prev)}</div>
+                <div className="col-span-3 p-2 text-right">{formatNumber(invoiceAmount.current)}</div>
+             </div>
+
+             {/* B) KESİNTİLER */}
+             <div className="p-2 font-bold bg-gray-100 border-b border-black">B) KESİNTİLER</div>
+             
+             {coverData.deductions.map((row, idx) => (
+                <div key={idx} className="grid grid-cols-12 border-b border-gray-300">
+                   <div className="col-span-4 p-1 pl-4 border-r border-black flex">
+                      <span className="mr-1">{idx + 1}.</span> {row.description}
+                   </div>
+                   <div className="col-span-2 p-1 border-r border-black text-right text-gray-600">
+                      {formatNumber((row.prevAmount||0) + (row.currentAmount||0))}
+                   </div>
+                   <div className="col-span-3 p-1 border-r border-black text-right text-gray-600">
+                      {formatNumber(row.prevAmount)}
+                   </div>
+                   <div className="col-span-3 p-1 text-right font-bold">
+                      {formatNumber(row.currentAmount)}
+                   </div>
+                </div>
+             ))}
+
+             {/* Kesintiler Toplamı */}
+             <div className="grid grid-cols-12 border-b-2 border-black bg-red-50 font-bold">
+                <div className="col-span-4 p-2 border-r border-black text-right pr-2">KESİNTİLER TOPLAMI :</div>
+                <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(deductionTotals.general)}</div>
+                <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(deductionTotals.prev)}</div>
+                <div className="col-span-3 p-2 text-right">{formatNumber(deductionTotals.current)}</div>
+             </div>
+
+             {/* NET ÖDENECEK */}
+             <div className="grid grid-cols-12 font-bold text-base bg-emerald-100">
+                <div className="col-span-4 p-3 border-r border-black text-right pr-2">NET ÖDENECEK TUTAR :</div>
+                <div className="col-span-8 p-3 text-right">
+                   {formatNumber(netPayable.current)} TL
+                </div>
+             </div>
+        </div>
+        
+        <SignatureBlock />
+      </div>
+
+      <div className="print-break-before block"></div>
+
+      {/* 3. İCMAL (YEŞİL DEFTER) */}
+      <div className="min-h-[297mm] flex flex-col pt-8">
+        <Header title="HAKEDİŞ ÖZETİ (İCMAL)" />
+        
+        <table className="w-full border-collapse border border-black text-xs">
+          <thead>
+            <tr className="bg-gray-200 font-bold text-center border-b border-black">
+              <th className="border-r border-black p-1">Poz No</th>
+              <th className="border-r border-black p-1">İşin Tanımı</th>
+              <th className="border-r border-black p-1">Birim</th>
+              <th className="border-r border-black p-1">B.Fiyat</th>
+              <th className="border-r border-black p-1 bg-yellow-50">Önceki</th>
+              <th className="border-r border-black p-1 bg-blue-50">Bu Dönem</th>
+              <th className="border-r border-black p-1">Toplam</th>
+              <th className="p-1">Tutar (TL)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groupedData.map((item) => {
+              const prevQty = previousQuantities[item.code] || 0;
+              const currentQty = item.totalQty - prevQty;
+              const currentAmount = currentQty * item.unitPrice;
+
+              return (
+                <tr key={item.code} className="border-b border-gray-400">
+                  <td className="border-r border-black p-1 text-center font-bold">{item.code}</td>
+                  <td className="border-r border-black p-1">{item.description}</td>
+                  <td className="border-r border-black p-1 text-center">{item.unit}</td>
+                  <td className="border-r border-black p-1 text-right">{formatNumber(item.unitPrice)}</td>
+                  <td className="border-r border-black p-1 text-right text-gray-500">{formatNumber(prevQty)}</td>
+                  <td className="border-r border-black p-1 text-right font-bold">{formatNumber(currentQty)}</td>
+                  <td className="border-r border-black p-1 text-right bg-gray-50">{formatNumber(item.totalQty)}</td>
+                  <td className="p-1 text-right font-bold">{formatNumber(currentAmount)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+             <tr className="bg-gray-800 text-white font-bold">
+                <td colSpan={7} className="p-2 text-right">TOPLAM BU DÖNEM İMALATI:</td>
+                <td className="p-2 text-right">{formatCurrency(grandTotalAmount)}</td>
+             </tr>
+          </tfoot>
+        </table>
+
+        <SignatureBlock />
+      </div>
+
+      <div className="print-break-before block"></div>
+
+      {/* 4. METRAJ CETVELLERİ */}
+      <div className="min-h-[297mm] flex flex-col pt-8">
+        <Header title="METRAJ CETVELLERİ" />
         
         <div className="space-y-6">
           {sheets.map((sheet, index) => (
-            // break-inside-avoid: Tablo bölünmesin
-            <div key={sheet.id} className="break-inside-avoid border border-black mb-4 print:mb-4">
+            <div key={sheet.id} className="break-inside-avoid border border-black mb-4">
               <div className="bg-gray-200 border-b border-black p-1.5 flex justify-between font-bold text-xs">
                 <span>{index + 1}. {sheet.groupName}</span>
                 <span>Poz: {sheet.code}</span>
@@ -86,10 +349,10 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
                 <thead>
                   <tr className="bg-gray-100 border-b border-black">
                     <th className="border-r border-black p-1 text-left w-[40%]">Açıklama</th>
-                    <th className="border-r border-black p-1 w-[12%]">En</th>
-                    <th className="border-r border-black p-1 w-[12%]">Boy</th>
-                    <th className="border-r border-black p-1 w-[12%]">Yük.</th>
-                    <th className="border-r border-black p-1 w-[8%]">Adet</th>
+                    <th className="border-r border-black p-1 w-[12%] text-center">En</th>
+                    <th className="border-r border-black p-1 w-[12%] text-center">Boy</th>
+                    <th className="border-r border-black p-1 w-[12%] text-center">Yük.</th>
+                    <th className="border-r border-black p-1 w-[8%] text-center">Adet</th>
                     <th className="p-1 w-[16%] text-right">Miktar</th>
                   </tr>
                 </thead>
@@ -117,75 +380,6 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         </div>
       </div>
 
-      {/* Sayfa Kesme: Her zaman yeni sayfaya geç */}
-      <div className="print-break-before block h-4"></div>
-
-      {/* --------------------------------------------------------- */}
-      {/* BÖLÜM 2: YEŞİL DEFTER (HAKEDİŞ ÖZETİ) */}
-      {/* --------------------------------------------------------- */}
-      <div>
-        <Header title="YEŞİL DEFTER (İCMAL)" />
-        
-        <table className="w-full border-collapse border border-black text-xs">
-          <thead>
-            <tr className="bg-gray-200 font-bold text-center border-b border-black">
-              <th className="border-r border-black p-1.5">Poz No</th>
-              <th className="border-r border-black p-1.5">İşin Tanımı</th>
-              <th className="border-r border-black p-1.5">Birim</th>
-              <th className="border-r border-black p-1.5">B.Fiyat</th>
-              <th className="border-r border-black p-1.5 bg-yellow-50">Önceki</th>
-              <th className="border-r border-black p-1.5 bg-blue-50">Bu Dönem</th>
-              <th className="border-r border-black p-1.5">Toplam</th>
-              <th className="p-1.5">Tutar (TL)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groupedData.map((item) => {
-              const prevQty = previousQuantities[item.code] || 0;
-              const currentQty = item.totalQty - prevQty;
-              const currentAmount = currentQty * item.unitPrice;
-
-              return (
-                <tr key={item.code} className="border-b border-gray-400 hover:bg-gray-50">
-                  <td className="border-r border-black p-1 text-center font-bold">{item.code}</td>
-                  <td className="border-r border-black p-1">{item.description}</td>
-                  <td className="border-r border-black p-1 text-center">{item.unit}</td>
-                  <td className="border-r border-black p-1 text-right">{formatCurrency(item.unitPrice)}</td>
-                  <td className="border-r border-black p-1 text-right text-gray-500">{formatNumber(prevQty)}</td>
-                  <td className="border-r border-black p-1 text-right font-bold">{formatNumber(currentQty)}</td>
-                  <td className="border-r border-black p-1 text-right bg-gray-50">{formatNumber(item.totalQty)}</td>
-                  <td className="p-1 text-right font-bold">{formatCurrency(currentAmount)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="bg-gray-800 text-white font-bold">
-              <td colSpan={7} className="p-2 text-right">TOPLAM BU DÖNEM İMALATI:</td>
-              <td className="p-2 text-right">{formatCurrency(grandTotalAmount)}</td>
-            </tr>
-          </tfoot>
-        </table>
-
-        {/* DİNAMİK İMZA BLOĞU - Max 4 Sütun Ayarı */}
-        {/* grid-cols-2 (mobil) -> md:grid-cols-4 (masaüstü/print) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 mt-12 px-2 text-center break-inside-avoid print:grid-cols-4">
-          {(projectInfo?.signatories || []).map((sig, index) => (
-            <div key={index} className="flex flex-col items-center min-w-0">
-                {/* Unvan Alanı */}
-                <div className="w-full border-b border-black pb-1 mb-2 min-h-[30px] flex items-end justify-center">
-                   <p className="font-bold uppercase text-[10px] md:text-xs break-words w-full px-1">
-                     {sig.title}
-                   </p>
-                </div>
-                {/* İsim Alanı */}
-                <p className="text-[10px] md:text-xs break-words w-full px-1">
-                  {sig.name ? sig.name : '...................................'}
-                </p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
