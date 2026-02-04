@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MeasurementSheet, ProjectInfo, TabView, CoverData } from './types';
 import { InputSection } from './components/InputSection';
 import { PaymentSummary } from './components/PaymentSummary';
@@ -7,15 +7,52 @@ import { PrintReport } from './components/PrintReport';
 import { ProjectSettings } from './components/ProjectSettings';
 import { generateId } from './utils';
 import { 
-  Printer, Calculator, LayoutDashboard, ClipboardList, BookOpenCheck, Settings
+  Printer, Calculator, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, AlertTriangle
 } from 'lucide-react';
 
 const App: React.FC = () => {
-  // --- STATE YÖNETİMİ ---
-  const [activeTab, setActiveTab] = useState<TabView>('input');
-  
-  const [previousQuantities, setPreviousQuantities] = useState<Record<string, number>>({});
+  // --- AUTH STATE (GÜVENLİK KONTROLÜ) ---
+  const [authStatus, setAuthStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [authMessage, setAuthMessage] = useState<string>('');
 
+  useEffect(() => {
+    const checkAccess = async () => {
+      // 1. URL'den apiKey'i al
+      const urlParams = new URLSearchParams(window.location.search);
+      const apiKey = urlParams.get('apiKey');
+
+      // 2. Anahtar yoksa hata ver
+      if (!apiKey) {
+        setAuthStatus('error');
+        setAuthMessage("API anahtarı eksik. Lütfen ana sayfa üzerinden giriş yapın.");
+        return;
+      }
+
+      try {
+        // 3. API'yi sorgula
+        const response = await fetch(`https://www.celikyucel.com/_functions/validateKey?apiKey=${apiKey}`);
+        const data = await response.json();
+
+        // 4. Sonuca göre durumu güncelle
+        if (data.valid === true) {
+          setAuthStatus('success');
+        } else {
+          setAuthStatus('error');
+          setAuthMessage(data.message || "API anahtarınızın süresi dolmuş veya geçersiz.");
+        }
+      } catch (error) {
+        console.error("Doğrulama hatası:", error);
+        setAuthStatus('error');
+        setAuthMessage("Sistem doğrulaması şu an yapılamıyor. Lütfen daha sonra tekrar deneyin.");
+      }
+    };
+
+    checkAccess();
+  }, []);
+
+  // --- MEVCUT STATE YÖNETİMİ ---
+  const [activeTab, setActiveTab] = useState<TabView>('input');
+  const [previousQuantities, setPreviousQuantities] = useState<Record<string, number>>({});
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>({
     projectName: 'ORNEK KONUT PROJESİ İNŞAATI',
     contractor: 'DEMİR İNŞAAT TAAHHÜT LTD. ŞTİ.',
@@ -29,7 +66,6 @@ const App: React.FC = () => {
     ]
   });
 
-  // YENİ: Kapak Sayfası Verileri (Varsayılanlar)
   const [coverData, setCoverData] = useState<CoverData>({
     kdvRate: 20,
     extraPayments: [],
@@ -49,6 +85,43 @@ const App: React.FC = () => {
     }
   ]);
 
+  // --- RENDER MANTIĞI ---
+
+  // DURUM 1: YÜKLENİYOR
+  if (authStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Yetki kontrol ediliyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // DURUM 2: HATA (GİRİŞ BAŞARISIZ)
+  if (authStatus === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
+        <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200">
+          <div className="bg-red-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle className="text-red-500" size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Erişim Hatası</h2>
+          <p className="text-gray-500 mb-8">{authMessage}</p>
+          
+          <a 
+            href="https://www.celikyucel.com" 
+            className="inline-block bg-slate-800 text-white px-6 py-3 rounded-lg font-medium hover:bg-slate-700 transition w-full"
+          >
+            Ana Sayfaya Dön
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // DURUM 3: BAŞARILI (UYGULAMA GÖSTERİLİR)
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-100">
       {/* HEADER KISMI AYNI KALIYOR... */}
@@ -97,7 +170,6 @@ const App: React.FC = () => {
               projectInfo={projectInfo}
             />
           )}
-          {/* YENİ: CoverData prop'ları eklendi */}
           {activeTab === 'cover' && (
             <PaymentCover 
               sheets={sheets} 
@@ -122,7 +194,7 @@ const App: React.FC = () => {
                   sheets={sheets} 
                   projectInfo={projectInfo} 
                   previousQuantities={previousQuantities}
-                  coverData={coverData} // <-- BU SATIRI EKLEYİN
+                  coverData={coverData}
               />
             </div>
           )}
