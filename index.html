@@ -12,80 +12,50 @@
         color: #1e293b;
       }
 
-      /* Rapor sayfalarının ekrandaki önizleme görünümü */
+      /* --- RAPOR SAYFASI TASARIMI (PDF OLUŞTURUCU İÇİN) --- */
       .report-page {
         width: 210mm;
         min-height: 297mm;
         padding: 20mm;
         margin: 20px auto;
         background: white;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
         box-sizing: border-box;
         position: relative;
-        overflow: hidden;
+        
+        /* Sayfa Bölme Kuralları */
+        page-break-after: always;
+        break-after: page;
       }
 
-      /* --- YAZDIRMA (PRINT) ÖZEL AYARLARI --- */
+      /* Son sayfadan sonra boş sayfa atmasını engelle */
+      .report-page:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        margin-bottom: 0;
+      }
+
+      /* PDF oluşturucu için yardımcı sınıf */
+      .break-after-page {
+        page-break-after: always;
+      }
+
+      /* --- YAZDIRMA (PRINT) MODU İÇİN YEDEK AYARLAR --- */
       @media print {
-        @page {
-          size: A4;
-          margin: 0; /* Kenar boşluklarını report-page içindeki padding ile yönetiyoruz */
-        }
-
-        body {
-          background-color: white !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          -webkit-print-color-adjust: exact; /* Renklerin ve gri alanların çıkması için kritik */
-          print-color-adjust: exact;
-        }
-
-        /* Ekrandaki navigasyon ve butonları gizle */
-        .no-print {
-          display: none !important;
-        }
-
-        /* Rapor sayfalarını çıktıya uyarla */
+        @page { size: A4; margin: 0; }
+        body { background: white; -webkit-print-color-adjust: exact; }
+        .no-print { display: none !important; }
+        
         .report-page {
           margin: 0 !important;
           box-shadow: none !important;
-          width: 210mm;
-          /* height: 297mm; yerine auto kullanarak içeriğin taşmasını engelliyoruz */
-          min-height: 297mm; 
-          height: auto !important;
-          page-break-after: always; /* Her sayfa sonrasında yeni sayfaya geç */
-          overflow: visible !important;
-        }
-
-        .report-page:last-child {
-          page-break-after: auto;
-        }
-
-        /* Tabloların ve imza bloklarının sayfa ortasında bölünmesini engelle */
-        table, tr, td, th {
-          page-break-inside: avoid !important;
-        }
-
-        .signature-block {
-          page-break-inside: avoid !important;
-          break-inside: avoid;
-        }
-
-        /* Metraj cetveli gibi uzun bölümlerde başlıkların kaymasını önler */
-        .break-inside-avoid {
-          break-inside: avoid;
-          page-break-inside: avoid;
+          page-break-after: always;
         }
       }
 
-      /* Kaydırma çubuğunu gizle (Navigasyon için) */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
+      /* Scrollbar Gizleme */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
     
     <script type="importmap">
@@ -103,8 +73,6 @@
   </head>
   <body class="bg-gray-50 text-slate-800">
     <div id="root"></div>
-
     <script type="module" src="/index.tsx"></script>
-    
   </body>
 </html>
