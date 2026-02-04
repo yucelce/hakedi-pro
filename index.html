@@ -8,11 +8,33 @@
     <style>
       /* Print specific styles */
       @media print {
-        @page { size: A4; margin: 10mm; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
-        .no-print { display: none !important; }
-        .print-break-before { page-break-before: always; }
-        .print-container { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+        @page {
+          size: A4;
+          margin: 5mm; /* Kenar boşluğunu 10mm'den 5mm'ye düşürdük */
+        }
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          background-color: white !important;
+          margin: 0 !important; /* Body margin sıfırlandı */
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-break-before {
+          page-break-before: always;
+        }
+        .print-break-inside-avoid {
+          break-inside: avoid;
+        }
+        /* Tarayıcı varsayılanlarını ezmek için container ayarı */
+        .print-container {
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+        }
       }
     </style>
     <script type="importmap">

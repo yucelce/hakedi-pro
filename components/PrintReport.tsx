@@ -1,4 +1,3 @@
-// components/PrintReport.tsx
 import React, { useMemo } from 'react';
 import { MeasurementSheet, ProjectInfo } from '../types';
 import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
@@ -12,7 +11,6 @@ interface Props {
 export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuantities }) => {
 
   // --- HESAPLAMALAR ---
-  // 1. Yeşil Defter için Gruplama (Poz No bazında toplama)
   const groupedData = useMemo(() => {
     const groups: Record<string, {
       code: string;
@@ -38,28 +36,27 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
     return Object.values(groups);
   }, [sheets]);
 
-  // Genel Toplam Tutar
   const grandTotalAmount = groupedData.reduce((acc, item) => {
     const prevQty = previousQuantities[item.code] || 0;
     const currentQty = item.totalQty - prevQty;
     return acc + (currentQty * item.unitPrice);
   }, 0);
 
-  // --- ORTAK BİLEŞENLER ---
+  // --- HEADER BİLEŞENİ ---
   const Header = ({ title }: { title: string }) => (
-    <div className="border-b-2 border-gray-800 pb-4 mb-6 break-inside-avoid">
-      <div className="flex justify-between uppercase font-bold text-xs md:text-sm">
+    <div className="border-b-2 border-gray-800 pb-2 mb-4 break-inside-avoid">
+      <div className="flex justify-between uppercase font-bold text-xs">
         <div>
-          <h1 className="text-lg">{projectInfo.projectName}</h1>
-          <p className="text-gray-600">{projectInfo.contractor}</p>
+          <h1 className="text-sm md:text-base">{projectInfo.projectName}</h1>
+          <p className="text-gray-600 text-xs">{projectInfo.contractor}</p>
         </div>
         <div className="text-right">
           <h2>{projectInfo.period}</h2>
-          <p>{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
+          <p className="text-xs">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
         </div>
       </div>
-      <div className="text-center mt-4">
-        <span className="border-2 border-gray-800 px-4 py-1 font-bold text-lg rounded">
+      <div className="text-center mt-2">
+        <span className="border border-gray-800 px-4 py-1 font-bold text-sm rounded bg-gray-50">
           {title}
         </span>
       </div>
@@ -67,38 +64,39 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
   );
 
   return (
-    <div className="bg-white w-full max-w-[210mm] mx-auto p-8 print:p-0 text-black font-serif text-sm">
+    // width ve padding ayarları güncellendi
+    <div className="bg-white w-full print:w-full max-w-[210mm] mx-auto p-8 print:p-0 text-black font-serif text-xs md:text-sm">
       
       {/* --------------------------------------------------------- */}
       {/* BÖLÜM 1: DETAYLI METRAJ CETVELLERİ */}
       {/* --------------------------------------------------------- */}
-      <div className="mb-12">
+      <div className="print:mb-0">
         <Header title="METRAJ CETVELİ" />
         
-        <div className="space-y-8">
+        <div className="space-y-6">
           {sheets.map((sheet, index) => (
-            <div key={sheet.id} className="break-inside-avoid border border-black mb-6">
-              {/* Cetvel Başlığı */}
-              <div className="bg-gray-200 border-b border-black p-2 flex justify-between font-bold text-xs">
+            // break-inside-avoid: Tablo bölünmesin
+            <div key={sheet.id} className="break-inside-avoid border border-black mb-4 print:mb-4">
+              <div className="bg-gray-200 border-b border-black p-1.5 flex justify-between font-bold text-xs">
                 <span>{index + 1}. {sheet.groupName}</span>
                 <span>Poz: {sheet.code}</span>
               </div>
               
-              <table className="w-full text-xs border-collapse">
+              <table className="w-full text-xs border-collapse table-fixed">
                 <thead>
                   <tr className="bg-gray-100 border-b border-black">
-                    <th className="border-r border-black p-1 text-left w-1/3">Açıklama</th>
-                    <th className="border-r border-black p-1 w-12">En</th>
-                    <th className="border-r border-black p-1 w-12">Boy</th>
-                    <th className="border-r border-black p-1 w-12">Yük.</th>
-                    <th className="border-r border-black p-1 w-10">Adet</th>
-                    <th className="p-1 w-20 text-right">Miktar</th>
+                    <th className="border-r border-black p-1 text-left w-[40%]">Açıklama</th>
+                    <th className="border-r border-black p-1 w-[12%]">En</th>
+                    <th className="border-r border-black p-1 w-[12%]">Boy</th>
+                    <th className="border-r border-black p-1 w-[12%]">Yük.</th>
+                    <th className="border-r border-black p-1 w-[8%]">Adet</th>
+                    <th className="p-1 w-[16%] text-right">Miktar</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sheet.measurements.map((m) => (
                     <tr key={m.id} className="border-b border-gray-300">
-                      <td className="border-r border-black p-1">{m.description}</td>
+                      <td className="border-r border-black p-1 truncate">{m.description}</td>
                       <td className="border-r border-black p-1 text-center">{formatNumber(m.width)}</td>
                       <td className="border-r border-black p-1 text-center">{formatNumber(m.length)}</td>
                       <td className="border-r border-black p-1 text-center">{formatNumber(m.height)}</td>
@@ -108,7 +106,7 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-100 font-bold">
+                  <tr className="bg-gray-50 font-bold">
                     <td colSpan={5} className="border-t border-r border-black p-1 text-right">TOPLAM ({sheet.unit}):</td>
                     <td className="border-t border-black p-1 text-right">{formatNumber(sheet.totalAmount)}</td>
                   </tr>
@@ -119,25 +117,27 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         </div>
       </div>
 
-      <div className="print-break-before"></div>
+      {/* Sayfa Kesme: Her zaman yeni sayfaya geç */}
+      <div className="print-break-before block h-4"></div>
 
       {/* --------------------------------------------------------- */}
       {/* BÖLÜM 2: YEŞİL DEFTER (HAKEDİŞ ÖZETİ) */}
       {/* --------------------------------------------------------- */}
-      <div className="min-h-[297mm]">
+      {/* min-h-[297mm] KALDIRILDI - Artık boş sayfa oluşturmayacak */}
+      <div>
         <Header title="YEŞİL DEFTER (İCMAL)" />
         
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-200 font-bold text-center border-b border-black">
-              <th className="border-r border-black p-2">Poz No</th>
-              <th className="border-r border-black p-2">İşin Tanımı</th>
-              <th className="border-r border-black p-2">Birim</th>
-              <th className="border-r border-black p-2">B.Fiyat</th>
-              <th className="border-r border-black p-2 bg-yellow-50">Önceki</th>
-              <th className="border-r border-black p-2 bg-blue-50">Bu Dönem</th>
-              <th className="border-r border-black p-2">Toplam</th>
-              <th className="p-2">Tutar (TL)</th>
+              <th className="border-r border-black p-1.5">Poz No</th>
+              <th className="border-r border-black p-1.5">İşin Tanımı</th>
+              <th className="border-r border-black p-1.5">Birim</th>
+              <th className="border-r border-black p-1.5">B.Fiyat</th>
+              <th className="border-r border-black p-1.5 bg-yellow-50">Önceki</th>
+              <th className="border-r border-black p-1.5 bg-blue-50">Bu Dönem</th>
+              <th className="border-r border-black p-1.5">Toplam</th>
+              <th className="p-1.5">Tutar (TL)</th>
             </tr>
           </thead>
           <tbody>
@@ -169,18 +169,15 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         </table>
 
         {/* İMZA BLOĞU */}
-        <div className="flex justify-between mt-20 px-10 text-center break-inside-avoid">
+        <div className="flex justify-between mt-12 px-6 text-center break-inside-avoid">
             <div>
-                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">YÜKLENİCİ</p>
-                <p className="text-xs">Şirket Yetkilisi</p>
+                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">YÜKLENİCİ</p>
             </div>
             <div>
-                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">KONTROL</p>
-                <p className="text-xs">İnşaat Mühendisi</p>
+                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">KONTROL</p>
             </div>
             <div>
-                <p className="font-bold border-b border-black pb-1 mb-4 w-40 mx-auto">ONAYLAYAN</p>
-                <p className="text-xs">İdare Yetkilisi</p>
+                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto">ONAYLAYAN</p>
             </div>
         </div>
       </div>
