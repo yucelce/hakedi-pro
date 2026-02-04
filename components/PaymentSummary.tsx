@@ -200,7 +200,7 @@ export const PaymentSummary: React.FC<Props> = ({ sheets, previousQuantities, se
 
       {/* DİNAMİK İMZA BLOĞU (Sadece Çıktıda Görünür) - Max 4 Sütun */}
       <div className="mt-16 hidden print:grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 px-8 text-sm print:gap-x-4 w-full">
-         {projectInfo.signatories.map((sig, index) => (
+         {(projectInfo?.signatories || []).map((sig, index) => (
            <div key={index} className="text-center flex flex-col items-center min-w-0">
               {/* Unvan */}
               <div className="w-full border-b border-black pb-1 mb-4 flex items-end justify-center min-h-[2em]">

@@ -125,14 +125,16 @@ const App: React.FC = () => {
             <PaymentSummary 
               sheets={sheets} 
               previousQuantities={previousQuantities} 
-              setPreviousQuantities={setPreviousQuantities} 
+              setPreviousQuantities={setPreviousQuantities}
+              projectInfo={projectInfo}
             />
           )}
 
           {activeTab === 'cover' && (
             <PaymentCover 
               sheets={sheets} 
-              previousQuantities={previousQuantities} 
+              previousQuantities={previousQuantities}
+              projectInfo={projectInfo}
             />
           )}
 

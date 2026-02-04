@@ -15,7 +15,7 @@ export const ProjectSettings: React.FC<Props> = ({ projectInfo, setProjectInfo }
 
   // İmza Yetkilisi İşlemleri
   const handleSignatoryChange = (index: number, field: keyof Signatory, value: string) => {
-    const newSignatories = [...projectInfo.signatories];
+    const newSignatories = [...(projectInfo.signatories || [])];
     newSignatories[index] = { ...newSignatories[index], [field]: value };
     setProjectInfo(prev => ({ ...prev, signatories: newSignatories }));
   };
@@ -23,21 +23,19 @@ export const ProjectSettings: React.FC<Props> = ({ projectInfo, setProjectInfo }
   const addSignatory = () => {
     setProjectInfo(prev => ({
       ...prev,
-      signatories: [...prev.signatories, { title: 'YENİ İMZA', name: '' }]
+      signatories: [...(prev.signatories || []), { title: 'YENİ İMZA', name: '' }]
     }));
   };
 
   const removeSignatory = (index: number) => {
     setProjectInfo(prev => ({
       ...prev,
-      signatories: prev.signatories.filter((_, i) => i !== index)
+      signatories: (prev.signatories || []).filter((_, i) => i !== index)
     }));
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300 pb-20">
-      
-      {/* ... (Başlık ve Proje Tanımı kısımları aynı kalacak) ... */}
       
       {/* Üst Kısım Aynen Kalıyor... */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -45,19 +43,16 @@ export const ProjectSettings: React.FC<Props> = ({ projectInfo, setProjectInfo }
           <Building2 className="text-blue-600" size={28} />
           Proje ve Firma Bilgileri
         </h2>
-        {/* ... */}
+        <p className="text-gray-500 mt-2">
+          Bu bilgiler tüm raporların başlığında ve imza bölümlerinde otomatik olarak kullanılacaktır.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-         {/* ... (Sol ve Sağ Kolon kodları aynı kalacak) ... */}
-         
-         {/* Buradaki mevcut input kodlarını koruyun, sadece aşağıya yeni bölüm ekliyoruz */}
          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-            {/* Mevcut Proje Tanımı inputları buradaydı */}
             <h3 className="font-bold text-lg text-gray-700 border-b pb-2 flex items-center gap-2">
             <FileText size={20} /> Proje Tanımı
           </h3>
-          {/* ... inputlar ... */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-1">Proje Adı</label>
             <textarea 
@@ -79,7 +74,6 @@ export const ProjectSettings: React.FC<Props> = ({ projectInfo, setProjectInfo }
          </div>
 
          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-            {/* Mevcut Firma Bilgileri inputları buradaydı */}
             <h3 className="font-bold text-lg text-gray-700 border-b pb-2 flex items-center gap-2">
               <Briefcase size={20} /> Taraflar
             </h3>
@@ -114,7 +108,7 @@ export const ProjectSettings: React.FC<Props> = ({ projectInfo, setProjectInfo }
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projectInfo.signatories.map((sig, index) => (
+          {(projectInfo.signatories || []).map((sig, index) => (
             <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-lg relative group">
               <button 
                 onClick={() => removeSignatory(index)}

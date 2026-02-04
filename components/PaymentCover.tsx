@@ -254,7 +254,7 @@ export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities, proj
       
       {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) - Max 4 Sütun */}
       <div className="hidden print:grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 mt-20 px-8 mx-auto text-sm print:gap-x-4 w-full">
-        {projectInfo.signatories.map((sig, index) => (
+        {(projectInfo?.signatories || []).map((sig, index) => (
           <div key={index} className="text-center flex flex-col items-center min-w-0">
               {/* Unvan */}
               <div className="w-full border-b border-black pb-1 mb-4 flex items-end justify-center min-h-[2em]">
