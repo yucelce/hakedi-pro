@@ -198,12 +198,22 @@ export const PaymentSummary: React.FC<Props> = ({ sheets, previousQuantities, se
         </table>
       </div>
 
-      {/* DİNAMİK İMZA BLOĞU (Sadece Çıktıda Görünür) */}
-      <div className="mt-16 hidden print:flex justify-between px-10 text-sm gap-4">
+      // components/PaymentSummary.tsx dosyasının en altındaki İmza Bloğu kısmını bununla değiştirin:
+
+      {/* DİNAMİK İMZA BLOĞU (Sadece Çıktıda Görünür) - DÜZELTİLMİŞ VERSİYON */}
+      <div className="mt-16 hidden print:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 px-4 text-sm print:gap-x-2 w-full">
          {projectInfo.signatories.map((sig, index) => (
-           <div key={index} className="text-center flex-1">
-              <p className="font-bold mb-8 uppercase">{sig.title}</p>
-              <p>{sig.name ? sig.name : '...................................'}</p>
+           <div key={index} className="text-center flex flex-col items-center min-w-0">
+              {/* Unvan */}
+              <div className="w-full border-b border-black pb-1 mb-4 flex items-end justify-center min-h-[2em]">
+                  <p className="font-bold uppercase break-words w-full text-xs">
+                    {sig.title}
+                  </p>
+              </div>
+              {/* İsim */}
+              <p className="break-words w-full text-xs">
+                 {sig.name ? sig.name : '...................................'}
+              </p>
            </div>
          ))}
       </div>

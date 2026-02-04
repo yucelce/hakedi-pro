@@ -123,7 +123,6 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
       {/* --------------------------------------------------------- */}
       {/* BÖLÜM 2: YEŞİL DEFTER (HAKEDİŞ ÖZETİ) */}
       {/* --------------------------------------------------------- */}
-      {/* min-h-[297mm] KALDIRILDI - Artık boş sayfa oluşturmayacak */}
       <div>
         <Header title="YEŞİL DEFTER (İCMAL)" />
         
@@ -168,16 +167,20 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
           </tfoot>
         </table>
 
-        // ... (tablo bitişi) ...
+        // components/PrintReport.tsx dosyasının en altındaki İmza Bloğu kısmını bununla değiştirin:
 
-        {/* DİNAMİK İMZA BLOĞU */}
-        <div className="flex justify-between mt-12 px-6 text-center break-inside-avoid gap-4">
+        {/* DİNAMİK İMZA BLOĞU - DÜZELTİLMİŞ VERSİYON */}
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 mt-12 px-2 text-center break-inside-avoid print:grid-cols-6 print:gap-x-2">
           {projectInfo.signatories.map((sig, index) => (
-            <div key={index} className="flex-1">
-                <p className="font-bold border-b border-black pb-1 mb-6 w-32 mx-auto uppercase">
-                  {sig.title}
-                </p>
-                <p className="text-sm">
+            <div key={index} className="flex flex-col items-center min-w-0">
+                {/* Unvan Alanı: Kelimeleri kırmak için break-words eklendi */}
+                <div className="w-full border-b border-black pb-1 mb-2 min-h-[30px] flex items-end justify-center">
+                   <p className="font-bold uppercase text-[10px] md:text-xs break-words w-full px-1">
+                     {sig.title}
+                   </p>
+                </div>
+                {/* İsim Alanı: Tek satır zorlaması kaldırıldı */}
+                <p className="text-[10px] md:text-xs break-words w-full px-1">
                   {sig.name ? sig.name : '...................................'}
                 </p>
             </div>

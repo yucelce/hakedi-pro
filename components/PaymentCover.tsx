@@ -252,12 +252,22 @@ export const PaymentCover: React.FC<Props> = ({ sheets, previousQuantities, proj
          * Bu dönem hakedişi ile Yüklenici'ye ödenecek net tutardır. (Fatura Tutarı - Kesintiler)
       </div>
       
-      {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) */}
-      <div className="hidden print:flex justify-between px-16 mt-20 max-w-5xl mx-auto gap-4">
+      // components/PaymentCover.tsx dosyasının en altındaki İmza Bloğu kısmını bununla değiştirin:
+
+      {/* DİNAMİK İMZA BLOĞU (Sadece Baskıda) - DÜZELTİLMİŞ VERSİYON */}
+      <div className="hidden print:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 mt-20 px-4 mx-auto text-sm print:gap-x-2 w-full">
         {projectInfo.signatories.map((sig, index) => (
-          <div key={index} className="text-center flex-1">
-              <p className="font-bold mb-10 uppercase">{sig.title}</p>
-              <p>{sig.name ? sig.name : '...................................'}</p>
+          <div key={index} className="text-center flex flex-col items-center min-w-0">
+              {/* Unvan */}
+              <div className="w-full border-b border-black pb-1 mb-4 flex items-end justify-center min-h-[2em]">
+                 <p className="font-bold uppercase break-words w-full text-xs">
+                    {sig.title}
+                 </p>
+              </div>
+              {/* İsim */}
+              <p className="break-words w-full text-xs">
+                 {sig.name ? sig.name : '...................................'}
+              </p>
           </div>
         ))}
       </div>
