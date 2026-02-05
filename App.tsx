@@ -70,14 +70,14 @@ const App: React.FC = () => {
 
   const [sheets, setSheets] = useState<MeasurementSheet[]>([
     {
-      id: generateId(), groupName: 'A Blok Temel', code: '15.120.100', description: 'C25/30 Hazır Beton Dökülmesi',
-      unit: 'm3', unitPrice: 2450.00, totalAmount: 120, calculatedCost: 294000,
-      measurements: [{ id: generateId(), description: 'Temel Papuçları', width: 12, length: 10, height: 1, count: 1, subtotal: 120 }]
+      id: generateId(), groupName: 'Seramik Yapılması', code: '15.375.1052', description: '30*30 Seramik Yapılması Mal+İşç',
+      unit: 'm2', unitPrice: 639.20, totalAmount: 120, calculatedCost: 76704,
+      measurements: [{ id: generateId(), description: 'Mutfak', width: 4, length: 3, height: 0, count: 0, subtotal: 12 }]
     },
     {
-      id: generateId(), groupName: 'Zemin Kat Duvar', code: 'Y.26.005/012', description: '13.5 Luk Tuğla Duvar',
+      id: generateId(), groupName: 'Sıva Yapılması', code: 'Poz Yok', description: 'Sıva yapılması işçiliği',
       unit: 'm2', unitPrice: 450.00, totalAmount: 500, calculatedCost: 225000,
-      measurements: [{ id: generateId(), description: 'Tüm Odalar', width: 0, length: 0, height: 0, count: 500, subtotal: 500 }]
+      measurements: [{ id: generateId(), description: 'Salon', width: 6, length: 0, height: 3, count: 4, subtotal: 72 }]
     }
   ]);
 
