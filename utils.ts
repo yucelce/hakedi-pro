@@ -26,13 +26,17 @@ export const formatCurrency = (amount: number): string => {
 
 // Tek bir metraj satırının hacmini hesaplar (En x Boy x Yük x Adet)
 export const calculateMeasurementRow = (m: Measurement): number => {
-  const w = m.width ?? 1;
-  const l = m.length ?? 1;
-  const h = m.height ?? 1;
-  const c = m.count ?? 0;
+  // Değer 0, null, undefined veya NaN ise 1 kabul et (Etkisiz eleman)
+  const w = m.width || 1;
+  const l = m.length || 1;
+  const h = m.height || 1;
+  // Adet 0 girilse bile çarpımı sıfırlamasın diye 1 kabul ediyoruz (kullanıcı isteği)
+  const c = m.count || 1; 
   
   // Eğer boyut girilmemişse (sadece açıklama varsa) 0 döndür
+  // Not: Kullanıcı 0 girmişse bu defined sayılır, yukarıda 1'e çevrilir ve hesaplanır.
   if (m.width === undefined && m.length === undefined && m.height === undefined) return 0;
+  
   return w * l * h * c;
 };
 

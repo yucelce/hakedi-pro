@@ -90,12 +90,16 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
       const newMeasurements = sheet.measurements.map(row => {
         if (row.id !== rowId) return row;
         const updatedRow = { ...row, [field]: value };
-        const w = updatedRow.width ?? 1;
-        const l = updatedRow.length ?? 1;
-        const h = updatedRow.height ?? 1;
-        const c = updatedRow.count ?? 0;
+        
+        // HESAPLAMA GÜNCELLEMESİ: 0 veya boş (undefined/null) değerler 1 olarak işlem görür.
+        const w = updatedRow.width || 1;
+        const l = updatedRow.length || 1;
+        const h = updatedRow.height || 1;
+        const c = updatedRow.count || 1;
+        
         const hasDimensions = updatedRow.width !== undefined || updatedRow.length !== undefined || updatedRow.height !== undefined;
         updatedRow.subtotal = hasDimensions ? (w * l * h * c) : 0;
+        
         return updatedRow;
       });
       return recalculateSheet(sheet, newMeasurements);
