@@ -7,7 +7,7 @@ import { PrintReport } from './components/PrintReport';
 import { ProjectSettings } from './components/ProjectSettings';
 import { generateId } from './utils';
 import { 
-  Printer, Calculator, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, AlertTriangle
+  Printer, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, AlertTriangle
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -17,11 +17,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkAccess = async () => {
-      // 1. URL'den apiKey'i al
       const urlParams = new URLSearchParams(window.location.search);
       const apiKey = urlParams.get('apiKey');
 
-      // 2. Anahtar yoksa hata ver
       if (!apiKey) {
         setAuthStatus('error');
         setAuthMessage("API anahtarı eksik. Lütfen ana sayfa üzerinden giriş yapın.");
@@ -29,11 +27,9 @@ const App: React.FC = () => {
       }
 
       try {
-        // 3. API'yi sorgula
         const response = await fetch(`https://www.celikyucel.com/_functions/validateKey?apiKey=${apiKey}`);
         const data = await response.json();
 
-        // 4. Sonuca göre durumu güncelle
         if (data.valid === true) {
           setAuthStatus('success');
         } else {
@@ -87,7 +83,6 @@ const App: React.FC = () => {
 
   // --- RENDER MANTIĞI ---
 
-  // DURUM 1: YÜKLENİYOR
   if (authStatus === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -99,7 +94,6 @@ const App: React.FC = () => {
     );
   }
 
-  // DURUM 2: HATA (GİRİŞ BAŞARISIZ)
   if (authStatus === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
@@ -121,18 +115,34 @@ const App: React.FC = () => {
     );
   }
 
-  // DURUM 3: BAŞARILI (UYGULAMA GÖSTERİLİR)
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-100">
-      {/* HEADER KISMI AYNI KALIYOR... */}
+      
+      {/* HEADER GÜNCELLENDİ: LOGO VE LİNK EKLENDİ */}
       <header className="bg-slate-900 text-white shadow-md no-print sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="bg-blue-600 p-1.5 rounded-lg">
-              <Calculator size={20} className="text-white" />
-            </div>
-            <h1 className="text-lg font-bold">Hakediş Pro</h1>
+          
+          {/* Logo ve Başlık Alanı */}
+          <div className="flex items-center w-full md:w-auto">
+            <a 
+              href="https://www.celikyucel.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="flex items-center gap-3 group hover:opacity-90 transition-opacity"
+              title="celikyucel.com Ana Sayfasına Git"
+            >
+              <img 
+                src="https://static.wixstatic.com/media/0ded6e_72f80a47c7854648ad37f65c0c5c9288~mv2.png/v1/crop/x_87,y_63,w_270,h_309/fill/w_84,h_98,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/site%20logo%20yal%C4%B1n_edited_png%20Kopyas%C4%B1.png" 
+                alt="Logo" 
+                className="h-10 w-auto bg-white rounded p-0.5 object-contain"
+              />
+              <div className="flex flex-col">
+                 <h1 className="text-lg font-bold leading-tight group-hover:text-blue-300 transition-colors">Hakediş Pro</h1>
+                 <small className="text-[10px] text-gray-400 font-normal">celikyucel.com Uygulaması</small>
+              </div>
+            </a>
           </div>
+
           <nav className="flex bg-slate-800 rounded-lg p-1 gap-1 overflow-x-auto max-w-full no-scrollbar">
             <button onClick={() => setActiveTab('settings')} className={`flex items-center gap-2 px-3 py-2 rounded-md transition text-sm font-medium whitespace-nowrap ${activeTab === 'settings' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
               <Settings size={18} /> <span className="hidden sm:inline">Proje Bilgileri</span>
