@@ -12,42 +12,45 @@
         color: #1e293b;
       }
 
-      /* --- RAPOR SAYFASI TASARIMI --- */
+      /* --- RAPOR SAYFASI TASARIMI (EKRANDA GÖRÜNÜM) --- */
       .report-page {
-        /* Ekrandaki Görünüm */
         width: 210mm;
         min-height: 297mm; /* Ekranda A4 gibi dursun */
-        padding: 20mm;
-        margin: 20px auto; /* Sayfalar arası boşluk */
+        padding: 15mm;     /* Kenar boşluklarını biraz azalttık */
+        margin: 20px auto;
         background: white;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
         box-sizing: border-box;
         position: relative;
-        
-        /* Sayfa Bölme Kuralı */
         page-break-after: always;
-        break-after: page;
       }
 
-      /* Son sayfadan sonraki boşluğu engelle */
+      /* Son sayfanın altında boşluk bırakma */
       .report-page:last-child {
-        page-break-after: avoid !important;
-        break-after: avoid !important;
+        page-break-after: avoid;
         margin-bottom: 0;
       }
 
-      /* --- PDF OLUŞTURMA ANI İÇİN ÖZEL AYARLAR (Kritik Kısım) --- */
-      /* html2pdf çalıştığında bu kurallar devreye girer */
+      /* --- PDF OLUŞTURMA ANI İÇİN ÖZEL AYARLAR (Kritik Düzeltme) --- */
+      /* html2pdf çalıştığında id="report-container" altındaki .report-page kurallarını ezer */
       
-      /* Elementin ID'si report-container olduğu için bu çalışır */
       #report-container .report-page {
-        margin: 0 !important;       /* Dış boşlukları sıfırla */
+        margin: 0 !important;        /* Dış boşlukları sıfırla */
         box-shadow: none !important; /* Gölgeleri kaldır */
         border: none !important;     /* Kenarlıkları kaldır */
         
-        /* Yüksekliği sabitleme, bırak kütüphane hesaplasın */
-        /* min-height: 297mm;  <-- Bunu iptal ediyoruz PDF modunda */
+        /* ÇOK ÖNEMLİ: PDF oluştururken min-height'i kaldırıyoruz ki içerik kadar yer kaplasın.
+           html2pdf zaten sayfaları bölecektir. Eğer 297mm zorlarsak boş sayfa atar. */
+        min-height: 0 !important; 
         height: auto !important; 
+        
+        /* Sayfa sonu kuralını PDF motoruna bırak */
+        page-break-after: always !important;
+      }
+
+      /* Son sayfada page-break olmasın */
+      #report-container .report-page:last-child {
+        page-break-after: avoid !important;
       }
 
       /* YAZDIRMA (CTRL+P) MODU İÇİN */
@@ -55,12 +58,13 @@
         @page { size: A4; margin: 0; }
         body { background: white; -webkit-print-color-adjust: exact; }
         .no-print { display: none !important; }
+        
         .report-page {
           margin: 0 !important;
           box-shadow: none !important;
-          page-break-after: always;
           width: 100%;
-          min-height: auto;
+          min-height: 297mm; /* Yazıcıda tam sayfa basması için */
+          page-break-after: always;
         }
       }
 
