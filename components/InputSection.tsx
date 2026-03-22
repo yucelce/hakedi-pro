@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { MeasurementSheet, Measurement } from '../types';
 import { generateId, formatNumber } from '../utils';
+import { supabase } from '../supabase'; // Supabase'i import ettik
 import { 
   Plus, Trash2, FolderPlus, ChevronDown, ChevronRight, 
-  FileSpreadsheet, Calculator, X, Save, Edit2 
+  FileSpreadsheet, X, Save, Search, Loader2 
 } from 'lucide-react';
 
 interface Props {
-  items: MeasurementSheet[]; // Artık WorkItem dizisi değil, Sheet dizisi alıyor
+  items: MeasurementSheet[];
   setItems: React.Dispatch<React.SetStateAction<MeasurementSheet[]>>;
 }
 
@@ -15,12 +16,18 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
   const [expandedSheets, setExpandedSheets] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // --- YENİ EKLENEN: POZ ARAMA STATELERİ ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [priceType, setPriceType] = useState<'dahil' | 'montaj'>('dahil');
+
   // Modal Form State
   const [formData, setFormData] = useState({
-    groupName: '', // A Blok Temel
-    code: '',      // 15.120.100
-    description: '', // Beton dökülmesi...
-    unit: 'm3',
+    groupName: '', 
+    code: '',      
+    description: '', 
+    unit: 'm2',
     unitPrice: 0
   });
 
@@ -28,10 +35,87 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
     setExpandedSheets(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // --- MODAL İŞLEMLERİ ---
   const openNewSheetModal = () => {
-    setFormData({ groupName: '', code: '', description: '', unit: 'm3', unitPrice: 0 });
+    setFormData({ groupName: '', code: '', description: '', unit: 'm2', unitPrice: 0 });
+    setSearchTerm('');
+    setSearchResults([]);
     setIsModalOpen(true);
+  };
+
+  // --- YENİ EKLENEN: SUPABASE ARAMA FONKSİYONU ---
+  const handleSearchPoz = async () => {
+    if (!searchTerm.trim()) return;
+    setIsSearching(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('poz2026')
+        .select('*')
+        .or(`poz.ilike.%${searchTerm}%,tanim.ilike.%${searchTerm}%`)
+        .limit(20);
+
+      if (error) throw error;
+      setSearchResults(data || []);
+    } catch (error) {
+      console.error("Poz arama hatası:", error);
+      alert("Poz aranırken bir hata oluştu.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // --- YENİ EKLENEN: LİSTEDEN POZ SEÇME FONKSİYONU (3 DEĞER MANTIĞI) ---
+  const handleSelectPoz = (item: any) => {
+    // Üç değeri de alıp, virgülleri noktaya çeviriyoruz
+    const vals = [
+      String(item.deger1 || '').trim().replace(',', '.'),
+      String(item.deger2 || '').trim().replace(',', '.'),
+      String(item.deger3 || '').trim().replace(',', '.') // 3. değer sütunu
+    ];
+
+    const numbers: number[] = [];
+    const texts: string[] = [];
+
+    vals.forEach(val => {
+      if (val === '') return;
+      
+      const num = parseFloat(val);
+      if (!isNaN(num)) {
+        numbers.push(num); 
+      } else {
+        texts.push(val); 
+      }
+    });
+
+    let priceDahil = 0;
+    let priceMontaj = 0;
+    let unit = 'm2'; 
+
+    if (numbers.length >= 2) {
+      numbers.sort((a, b) => a - b);
+      priceMontaj = numbers[0];
+      priceDahil = numbers[numbers.length - 1]; 
+      
+      if (texts.length > 0) unit = texts[0];
+    } else if (numbers.length === 1) {
+      priceDahil = numbers[0];
+      priceMontaj = numbers[0];
+      
+      if (texts.length > 0) unit = texts[0];
+    }
+
+    const selectedPrice = priceType === 'dahil' ? priceDahil : priceMontaj;
+
+    setFormData({
+      ...formData,
+      code: item.poz || '',
+      description: item.tanim || '',
+      unit: unit,
+      unitPrice: selectedPrice
+    });
+
+    setSearchResults([]);
+    setSearchTerm('');
   };
 
   const handleSaveSheet = () => {
@@ -54,7 +138,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
     setIsModalOpen(false);
   };
 
-  // --- HESAPLAMA YARDIMCISI ---
   const recalculateSheet = (sheet: MeasurementSheet, newMeasurements: Measurement[]): MeasurementSheet => {
     const totalAmount = newMeasurements.reduce((acc, curr) => acc + curr.subtotal, 0);
     return { 
@@ -65,7 +148,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
     };
   };
 
-  // --- SATIR İŞLEMLERİ ---
   const handleAddRow = (sheetId: string) => {
     setItems(prev => prev.map(sheet => {
       if (sheet.id !== sheetId) return sheet;
@@ -91,7 +173,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
         if (row.id !== rowId) return row;
         const updatedRow = { ...row, [field]: value };
         
-        // HESAPLAMA GÜNCELLEMESİ: 0 veya boş (undefined/null) değerler 1 olarak işlem görür.
         const w = updatedRow.width || 1;
         const l = updatedRow.length || 1;
         const h = updatedRow.height || 1;
@@ -142,7 +223,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
           return (
             <div key={sheet.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
               
-              {/* HEADER (Kart Başlığı) */}
               <div 
                 className={`flex flex-col md:flex-row md:items-center justify-between p-4 cursor-pointer select-none ${isExpanded ? 'bg-slate-50 border-b' : 'bg-white'}`}
                 onClick={() => toggleExpand(sheet.id)}
@@ -152,7 +232,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
                     {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </div>
                   <div>
-                    {/* Üst Bilgi (Poz No) - Küçük */}
                     <div className="flex items-center gap-2 mb-1">
                        <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 tracking-wider">
                          {sheet.code}
@@ -161,7 +240,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
                          {sheet.description}
                        </span>
                     </div>
-                    {/* Ana Başlık (Örn: A Blok Temel) */}
                     <h3 className="text-lg font-bold text-gray-800 leading-tight">
                       {sheet.groupName}
                     </h3>
@@ -185,7 +263,6 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
                 </div>
               </div>
 
-              {/* TABLE (Metraj Satırları) */}
               {isExpanded && (
                 <div className="p-0 animate-in slide-in-from-top-2 duration-200">
                   <div className="overflow-x-auto">
@@ -260,11 +337,11 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
         })
       )}
 
-      {/* --- YENİ CETVEL MODAL --- */}
+      {/* --- YENİ CETVEL MODAL (ARAMA EKRANI İLE BİRLİKTE) --- */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <FolderPlus size={20} className="text-blue-400" /> Yeni Metraj Cetveli
               </h3>
@@ -273,9 +350,87 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-6 overflow-y-auto">
               
-              {/* Bölüm Adı */}
+              {/* --- POZ ARAMA MODÜLÜ --- */}
+              <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
+                <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
+                  <Search size={16} /> Veritabanından Poz Çek
+                </h4>
+                
+                <div className="flex gap-2 mb-3">
+                  <input 
+                    type="text" 
+                    placeholder="Poz numarası veya tanım yazın... (Örn: 15.120.100 veya Beton)" 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchPoz()}
+                    className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button 
+                    onClick={handleSearchPoz}
+                    disabled={isSearching}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : 'Ara'}
+                  </button>
+                </div>
+
+                <div className="flex gap-6 items-center mb-3">
+                  <span className="text-xs font-semibold text-gray-500">Fiyat Tipi:</span>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
+                    <input 
+                      type="radio" 
+                      name="priceType" 
+                      value="dahil" 
+                      checked={priceType === 'dahil'} 
+                      onChange={() => setPriceType('dahil')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    /> Malzeme Dahil
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
+                    <input 
+                      type="radio" 
+                      name="priceType" 
+                      value="montaj" 
+                      checked={priceType === 'montaj'} 
+                      onChange={() => setPriceType('montaj')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    /> Sadece Montaj
+                  </label>
+                </div>
+
+                {searchResults.length > 0 && (
+                  <div className="mt-2 border border-blue-200 bg-white rounded-lg overflow-hidden max-h-48 overflow-y-auto shadow-inner">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-blue-50 text-blue-800 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">Poz No</th>
+                          <th className="px-3 py-2 font-semibold">Tanım</th>
+                          <th className="px-3 py-2 font-semibold text-right">İşlem</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {searchResults.map((result, idx) => (
+                          <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                            <td className="px-3 py-2 font-mono font-medium text-gray-700">{result.poz}</td>
+                            <td className="px-3 py-2 text-gray-600 truncate max-w-[200px]">{result.tanim}</td>
+                            <td className="px-3 py-2 text-right">
+                              <button 
+                                onClick={() => handleSelectPoz(result)}
+                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1 rounded font-medium transition"
+                              >
+                                Seç
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Cetvel / Bölüm Adı <span className="text-red-500">*</span></label>
                 <input 
@@ -335,7 +490,7 @@ export const InputSection: React.FC<Props> = ({ items, setItems }) => {
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100 shrink-0">
               <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm">İptal</button>
               <button 
                 onClick={handleSaveSheet}
