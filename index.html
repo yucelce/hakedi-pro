@@ -3,74 +3,114 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hakediş Pro</title>
+    <title>Hakediş Pro - Desktop Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
-      /* --- GENEL EKRAN TASARIMI --- */
-      body {
-        background-color: #f8fafc;
-        color: #1e293b;
-      }
+  /* --- GLOBAL MASAÜSTÜ AYARLARI --- */
+  body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* Dış sayfa kaydırmasını kapat (Desktop hissi) */
+    background-color: #f1f5f9; /* slate-100 */
+    color: #1e293b;
+  }
 
-      /* --- RAPOR SAYFASI TASARIMI (EKRANDA GÖRÜNÜM) --- */
-      .report-page {
-        width: 210mm;
-        min-height: 297mm; /* Ekranda A4 gibi dursun */
-        padding: 15mm;     /* Kenar boşluklarını biraz azalttık */
-        margin: 20px auto;
-        background: white;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        box-sizing: border-box;
-        position: relative;
-        page-break-after: always;
-      }
+  /* --- MASAÜSTÜ SCROLLBAR (CUSTOM) --- */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1; /* slate-300 */
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; /* slate-400 */
+  }
 
-      /* Son sayfanın altında boşluk bırakma */
-      .report-page:last-child {
-        page-break-after: avoid;
-        margin-bottom: 0;
-      }
+  /* --- RAPOR SAYFASI TASARIMI (Baskı ve Önizleme) --- */
+  .report-page {
+    width: 210mm;
+    min-height: 296mm; /* 297mm olan bu değeri 296mm yapın */
+    padding: 15mm;
+    margin: 20px auto;
+    background: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-sizing: border-box;
+    position: relative;
+    page-break-after: always;
+    break-after: page;
+  }
 
-      /* --- PDF OLUŞTURMA ANI İÇİN ÖZEL AYARLAR (Kritik Düzeltme) --- */
-      /* html2pdf çalıştığında id="report-container" altındaki .report-page kurallarını ezer */
-      
-      #report-container .report-page {
-        margin: 0 !important;        /* Dış boşlukları sıfırla */
-        box-shadow: none !important; /* Gölgeleri kaldır */
-        border: none !important;     /* Kenarlıkları kaldır */
-        
-        /* ÇOK ÖNEMLİ: PDF oluştururken min-height'i kaldırıyoruz ki içerik kadar yer kaplasın.
-           html2pdf zaten sayfaları bölecektir. Eğer 297mm zorlarsak boş sayfa atar. */
-        min-height: 0 !important; 
-        height: auto !important; 
-        
-        /* Sayfa sonu kuralını PDF motoruna bırak */
-        page-break-after: always !important;
-      }
+  /* --- KUSURSUZ PDF VE YAZDIRMA (CTRL+P) AYARLARI --- */
+  @media print {
+    @page { 
+      size: A4 portrait; 
+      margin: 10mm; 
+    }
+    
+    /* Yazdırırken tüm scroll ve height limitlerini sıfırla */
+    html, body, #root { 
+      background: white !important; 
+      -webkit-print-color-adjust: exact !important; 
+      print-color-adjust: exact !important; 
+      overflow: visible !important; 
+      height: auto !important;
+      min-height: auto !important;
+    }
+    
+    .no-print { display: none !important; }
+    
+    /* Konteyner sınırlarını tam A4 genişliğine yayıyoruz */
+    #report-container {
+      width: 100% !important;
+      display: block !important;
+      overflow: visible !important;
+    }
 
-      /* Son sayfada page-break olmasın */
-      #report-container .report-page:last-child {
-        page-break-after: avoid !important;
-      }
+    .report-page {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-shadow: none !important;
+      border: none !important;
+      min-height: auto !important; 
+      height: auto !important;
+      page-break-after: always;
+      break-after: page;
+      display: block !important; /* Flexbox iptal: Bölünme hatalarını çözer */
+    }
 
-      /* YAZDIRMA (CTRL+P) MODU İÇİN */
-      @media print {
-        @page { size: A4; margin: 0; }
-        body { background: white; -webkit-print-color-adjust: exact; }
-        .no-print { display: none !important; }
-        
-        .report-page {
-          margin: 0 !important;
-          box-shadow: none !important;
-          width: 100%;
-          min-height: 297mm; /* Yazıcıda tam sayfa basması için */
-          page-break-after: always;
-        }
-      }
+    .report-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
 
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
+    /* --- TABLO DÜZENLEMELERİ --- */
+    table {
+      page-break-inside: auto !important;
+      border-collapse: collapse !important;
+      width: 100% !important;
+    }
+
+    /* Tablo sarkarsa Başlıkları (thead) yeni sayfada tekrar yazdırır */
+    thead {
+      display: table-header-group !important;
+    }
+
+    /* Tablo satırlarının ve imza bloklarının ortadan İKİYE BÖLÜNMESİNİ engeller */
+    tr, td, th, .avoid-break {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+  }
+</style>
     
     <script type="importmap">
 {
@@ -86,8 +126,8 @@
 }
 </script>
   </head>
-  <body class="bg-gray-50 text-slate-800">
-    <div id="root"></div>
+  <body class="text-sm font-sans antialiased">
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

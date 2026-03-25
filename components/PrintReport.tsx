@@ -2,8 +2,6 @@ import React, { useMemo } from 'react';
 import { MeasurementSheet, ProjectInfo, CoverData } from '../types';
 import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
 import { Download, Printer } from 'lucide-react';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 interface Props {
   sheets: MeasurementSheet[];
@@ -20,7 +18,7 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
     let totalPrev = 0;
     sheets.forEach(sheet => {
       totalGeneral += sheet.totalAmount * sheet.unitPrice;
-      const prevQty = previousQuantities[sheet.code] || 0;
+      const prevQty = previousQuantities[sheet.id] || 0;
       totalPrev += prevQty * sheet.unitPrice;
     });
     return { general: totalGeneral, prev: totalPrev, current: totalGeneral - totalPrev };
@@ -68,32 +66,31 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
     general: invoiceAmount.general - deductionTotals.general
   };
 
-  // --- DETAYLI İCMAL VERİSİ ---
   const detailedGroupedData = useMemo(() => {
     const groups: Record<string, any> = {};
-    
+
     sheets.forEach(sheet => {
-      if (!groups[sheet.code]) {
-        groups[sheet.code] = {
+      const groupKey = `${sheet.code}_${sheet.groupName}`;
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
           code: sheet.code,
-          description: sheet.description || sheet.groupName,
+          description: sheet.groupName,
           unit: sheet.unit,
           unitPrice: sheet.unitPrice,
-          totalQty: 0
+          totalQty: 0,
+          prevQty: 0
         };
       }
-      groups[sheet.code].totalQty += sheet.totalAmount;
+      groups[groupKey].totalQty += sheet.totalAmount;
+      groups[groupKey].prevQty += (previousQuantities[sheet.id] || 0);
     });
 
     return Object.values(groups).map((item: any) => {
-      const prevQty = previousQuantities[item.code] || 0;
-      const currentQty = item.totalQty - prevQty;
-      
+      const currentQty = item.totalQty - item.prevQty;
       return {
-        ...item,
-        prevQty,
-        currentQty,
-        prevAmount: prevQty * item.unitPrice,
+        ...item, currentQty,
+        prevAmount: item.prevQty * item.unitPrice,
         currentAmount: currentQty * item.unitPrice,
         totalAmount: item.totalQty * item.unitPrice
       };
@@ -103,305 +100,528 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
   const grandTotalAmount = detailedGroupedData.reduce((acc, item) => acc + item.totalAmount, 0);
   const totalPrevAmount = detailedGroupedData.reduce((acc, item) => acc + item.prevAmount, 0);
   const totalCurrentAmount = detailedGroupedData.reduce((acc, item) => acc + item.currentAmount, 0);
+  const totalPages = 4 + sheets.length;
 
-  // Toplam Sayfa Sayısı
-  const totalPages = 3 + sheets.length;
+  // YENİ EKLENEN NAKDİ GERÇEKLEŞME (FİZİKİ İLERLEME) HESABI
+  // Yapılan İşler Tutarı (Matrah) / Sözleşme Bedeli
+  const completionPercentage = projectInfo.contractAmount && projectInfo.contractAmount > 0
+    ? ((totalAmountA.general / projectInfo.contractAmount) * 100)
+    : 0;
 
- // --- PDF İNDİRME FONKSİYONU ---
-  const handleDownloadPDF = () => {
-    const element = document.getElementById('report-container');
-    
-    const opt = {
-      margin:       [5, 0, 5, 0], // Dikey margin ekledik, taşmaları önler
-      filename:     `${projectInfo.projectName.replace(/\s+/g, '_')}_Hakedis.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { 
-        scale: 2, // 4 yerine 2 yaptım, boyut düşer ama render hızlanır ve hata azalır
-        useCORS: true, 
-        letterRendering: true,
-        scrollY: 0
-      },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: 'css', avoid: '.avoid-break' } // Otomatik yerine CSS kontrolü
-    };
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
 
-    html2pdf().set(opt).from(element).save();
+  const handleDownloadPDF = async () => {
+    setIsGenerating(true);
+    setProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return 90;
+        return prev + 15;
+      });
+    }, 500);
+
+    try {
+      const reportElement = document.getElementById('report-container');
+      if (!reportElement) throw new Error("Rapor alanı bulunamadı.");
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="tr">
+          <head>
+            <meta charset="UTF-8">
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+              body { background-color: white !important; font-family: Arial, Helvetica, sans-serif !important; }
+              .no-print { display: none !important; }
+              .report-page { 
+                box-shadow: none !important; 
+                border: none !important; 
+                margin: 0 !important; 
+                width: 100% !important; 
+                padding: 10mm !important;
+                page-break-after: always;
+              }
+              .num { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; }
+            </style>
+          </head>
+          <body class="antialiased text-black text-[11px]">
+            ${reportElement.outerHTML}
+          </body>
+        </html>
+      `;
+
+      const response = await fetch('/api/oracle-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: fullHtml })
+      });
+
+      if (!response.ok) throw new Error('Sunucu PDF oluştururken hata verdi.');
+
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectInfo.projectName.replace(/\s+/g, '_')}_Hakedis.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (error) {
+      console.error(error);
+      clearInterval(progressInterval);
+      alert("PDF üretilirken sunucu hatası oluştu.");
+    } finally {
+      setTimeout(() => {
+        setIsGenerating(false);
+        setProgress(0);
+      }, 1000);
+    }
   };
 
-  // --- BİLEŞENLER ---
+  // Üst Bilgi (Kurumsal Antet Stili) - DÜZELTİLMİŞ VERSİYON
   const Header = ({ title }: { title: string }) => (
-    <div className="border-b-2 border-gray-800 pb-2 mb-6 avoid-break">
-      <div className="flex justify-between uppercase font-bold text-xs">
-        <div>
-          <h1 className="text-sm md:text-base">{projectInfo.projectName}</h1>
-          <p className="text-gray-600 text-xs">{projectInfo.contractor}</p>
-        </div>
-        <div className="text-right">
-          <h2>{projectInfo.period}</h2>
-          <p className="text-xs">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
-        </div>
-      </div>
-      <div className="text-center mt-4">
-        <span className="border-2 border-gray-800 px-6 py-2 font-bold text-base rounded bg-gray-50 uppercase tracking-widest">
-          {title}
-        </span>
-      </div>
+    <div className="border-b-[2px] border-black pb-3 mb-5 avoid-break mt-2">
+      {/* table-fixed eklendi, böylece %'lik genişlikler kesin olarak korunur */}
+      <table className="w-full text-[10px] leading-snug border-none !p-0 !m-0 table-fixed">
+        <tbody>
+          <tr className="border-none !p-0">
+            {/* Sağdan boşluk (pr-2) ve break-words eklendi */}
+            <td className="w-[35%] text-left align-bottom border-none !p-0 pr-2">
+              <p className="text-gray-600 uppercase text-[9px] mb-0.5 tracking-wider">İdare / İşveren Kurum</p>
+              <p className="uppercase text-black font-bold text-[11px] mb-2 break-words">{projectInfo.employer || 'Belirtilmedi'}</p>
+              <p className="text-gray-600 uppercase text-[9px] mb-0.5 tracking-wider">İşin (Proje) Adı</p>
+              <p className="uppercase text-black font-bold text-[11px] break-words">{projectInfo.projectName}</p>
+            </td>
+            {/* Ortaya sağdan-soldan boşluk (px-2) eklendi, whitespace-nowrap kaldırıldı */}
+            <td className="w-[30%] text-center align-bottom border-none !p-0 px-2 pb-1">
+              <h2 className="text-[14px] font-bold uppercase tracking-widest text-black break-words">{title}</h2>
+            </td>
+            {/* Soldan boşluk (pl-2) ve break-words eklendi */}
+            <td className="w-[35%] text-right align-bottom border-none !p-0 pl-2">
+              <p className="text-gray-600 uppercase text-[9px] mb-0.5 tracking-wider">Yüklenici Firma</p>
+              <p className="uppercase text-black font-bold text-[11px] mb-2 break-words">{projectInfo.contractor}</p>
+              <p className="text-gray-600 uppercase text-[9px] mb-0.5 tracking-wider">Dönem / Tarih</p>
+              <p className="uppercase text-black font-bold text-[11px] break-words">{projectInfo.period} - {new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 
-  const SignatureBlock = () => (
-    <div className="grid grid-cols-3 gap-4 mt-auto pt-10 px-4 text-center signature-block avoid-break">
-      {(projectInfo.signatories || []).map((sig, index) => (
-        <div key={index} className="flex flex-col items-center">
-          <div className="w-full border-b border-black pb-1 mb-6 min-h-[20px] flex items-end justify-center">
-            <p className="font-bold uppercase text-[10px]">{sig.title}</p>
-          </div>
-          <p className="text-[10px]">{sig.name || '...................'}</p>
-        </div>
-      ))}
-    </div>
-  );
+  // İmza Alanı (Resmi evrak düzeni - Maksimum 4'lü Gruplama ve Garantili Boşluk)
+  const SignatureBlock = () => {
+    const sigs = projectInfo.signatories || [];
+    const chunkSize = 4; // Bir satırda maksimum kaç imza olacağı
+    const chunks = [];
+
+    // İmzaları 4'erli gruplara (satırlara) bölüyoruz
+    for (let i = 0; i < sigs.length; i += chunkSize) {
+      chunks.push(sigs.slice(i, i + chunkSize));
+    }
+
+    return (
+      <div className="mt-12 w-full avoid-break print:mt-8">
+        {chunks.map((chunk, chunkIndex) => (
+          <table key={chunkIndex} className={`w-full text-center border-none !p-0 !m-0 table-fixed ${chunkIndex > 0 ? 'mt-20' : ''}`}>
+            <tbody>
+              {/* 1. SATIR: Sadece Unvanlar */}
+              <tr className="border-none !p-0">
+                {chunk.map((sig, index) => (
+                  <td key={index} className="align-bottom border-none !p-0 px-2">
+                    {/* KRİTİK DÜZELTME: Yazıya mb-12 (Margin Bottom) ekledik. Bu sayede PDF motoru çizgiyi 48px aşağı itmek ZORUNDA kalacak. */}
+                    <p className="font-bold uppercase text-[10px] text-black tracking-wider break-words mb-12">{sig.title}</p>
+                  </td>
+                ))}
+              </tr>
+              {/* 2. SATIR: İmza Çizgileri ve İsimler */}
+              <tr className="border-none !p-0">
+                {chunk.map((sig, index) => (
+                  <td key={index} className="align-top border-none !p-0 px-2">
+                    <div className="w-4/5 max-w-[150px] mx-auto border-t-[1.5px] border-black pt-2 min-h-[30px]">
+                      <p className="text-[10px] text-black font-bold uppercase break-words">{sig.name || ''}</p>
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        ))}
+      </div>
+    );
+  };
 
   const PageNumber = ({ current }: { current: number }) => (
-    <div className="absolute bottom-8 right-10 text-[10px] text-gray-500 font-mono no-print-hide">
-      {current} / {totalPages}
+    <div className="absolute bottom-8 right-8 text-right text-[9px] text-gray-500 font-sans tracking-widest print:bottom-6 print:right-6">
+      SAYFA {current} / {totalPages}
     </div>
   );
 
   return (
-    <div className="w-full bg-gray-100 print:bg-white font-serif text-black relative">
-      
-      {/* İNDİRME BUTONU */}
-      <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-2 no-print" data-html2canvas-ignore="true">
-        <div className="bg-slate-800 text-white text-xs py-1 px-3 rounded opacity-80 mb-1">
-           Çıktı için önerilir 👇
+    <div className="w-full font-sans text-black relative flex flex-col items-center">
+
+      <div className="bg-white border border-gray-200 p-4 mb-8 max-w-4xl w-full flex justify-between items-center rounded-lg shadow-sm no-print">
+        <p className="text-xs text-gray-600 font-medium">Önizleme modu. Raporu resmi formatta dışa aktarabilirsiniz.</p>
+        <div className="flex gap-3">
+          <button
+            onClick={handleDownloadPDF}
+            disabled={isGenerating}
+            className="bg-emerald-600 text-white px-5 py-2 rounded-md text-[13px] font-bold hover:bg-emerald-700 flex items-center gap-2 transition disabled:opacity-100 relative overflow-hidden min-w-[190px] justify-center shadow-sm"
+          >
+            {isGenerating ? (
+              <>
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  İşleniyor %{progress}
+                </span>
+                <div
+                  className="absolute left-0 top-0 h-full bg-emerald-800 transition-all duration-300 z-0"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </>
+            ) : (
+              <>
+                <Download size={16} /> PDF Rapor İndir
+              </>
+            )}
+          </button>
+          <button onClick={() => window.print()} className="bg-black text-white px-5 py-2 rounded-md text-[13px] font-bold hover:bg-gray-800 flex items-center gap-2 transition shadow-sm">
+            <Printer size={16} /> Tarayıcıyla Yazdır
+          </button>
         </div>
-        <button 
-          onClick={handleDownloadPDF}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-3 font-bold transition transform hover:scale-105"
-        >
-          <Download size={24} /> PDF OLARAK İNDİR
-        </button>
       </div>
-      
-      {/* RAPOR KAPSAYICISI */}
-      <div id="report-container">
-        
-        {/* SAYFA 1: ÖN KAPAK */}
-        <div className="report-page flex flex-col justify-center items-center text-center relative">
-          <h1 className="text-4xl font-bold mb-20 tracking-widest border-b-4 border-gray-900 pb-4">HAKEDİŞ RAPORU</h1>
-          <div className="w-full max-w-lg space-y-8 text-left">
-            <div>
-              <p className="text-xs text-gray-500 font-bold mb-1">PROJE ADI</p>
-              <p className="text-lg font-bold border-b border-gray-300 pb-2">{projectInfo.projectName}</p>
+
+      <div id="report-container" className="w-full bg-gray-50 print:bg-white flex flex-col items-center">
+
+        {/* --- SAYFA 1: YENİ KURUMSAL ÖN KAPAK (SÖZLEŞME KÜNYESİ) --- */}
+        <div className="report-page block relative bg-white p-10 md:p-12 print:pt-16">
+          <div className="border-[3px] border-double border-black p-8 md:p-10 w-full max-w-3xl mx-auto bg-white flex flex-col min-h-[900px] print:min-h-0 print:h-full justify-between">
+
+            <div className="text-center mb-10">
+              <h1 className="text-[28px] md:text-[34px] font-black tracking-[0.15em] text-black border-b-[2px] border-black pb-6 leading-tight uppercase">
+                HAKEDİŞ RAPORU VE<br />EKLERİ DOSYASI
+              </h1>
             </div>
-             {/* İŞVEREN EKLENDİ */}
-             <div>
-              <p className="text-xs text-gray-500 font-bold mb-1">İDARE / İŞVEREN</p>
-              <p className="text-lg font-bold border-b border-gray-300 pb-2">{projectInfo.employer || 'Belirtilmedi'}</p>
+
+            <div className="flex-1 flex flex-col justify-center">
+              {/* SÖZLEŞME KÜNYESİ TABLOSU */}
+              <table className="w-full border-collapse border border-black text-[13px] text-left text-black">
+                <tbody>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">İdare / İşveren Kurum</td>
+                    <td className="border border-black p-3.5 font-bold uppercase text-[14px]">{projectInfo.employer || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">Yüklenici Firma</td>
+                    <td className="border border-black p-3.5 font-bold uppercase text-[14px]">{projectInfo.contractor || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">İşin Adı</td>
+                    <td className="border border-black p-3.5 font-bold uppercase text-[14px]">{projectInfo.projectName || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">İhale Kayıt No (İKN)</td>
+                    <td className="border border-black p-3.5 font-mono font-semibold text-[13px]">{projectInfo.ikn || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">Sözleşme Tarihi</td>
+                    <td className="border border-black p-3.5 font-mono font-semibold text-[13px]">
+                      {projectInfo.contractDate ? new Date(projectInfo.contractDate).toLocaleDateString('tr-TR') : '-'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">Yer Teslim Tarihi</td>
+                    <td className="border border-black p-3.5 font-mono font-semibold text-[13px]">
+                      {projectInfo.siteDeliveryDate ? new Date(projectInfo.siteDeliveryDate).toLocaleDateString('tr-TR') : '-'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">İşin Süresi</td>
+                    <td className="border border-black p-3.5 uppercase font-semibold text-[13px]">{projectInfo.duration || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-100 uppercase text-[11px] tracking-wider">Sözleşme Bedeli</td>
+                    <td className="border border-black p-3.5 font-bold num text-[14px]">
+                      {projectInfo.contractAmount ? formatCurrency(projectInfo.contractAmount) : '-'}
+                    </td>
+                  </tr>
+                  <tr className="border-t-[3px] border-black">
+                    <td className="border border-black p-3.5 font-bold w-[35%] bg-gray-200 uppercase text-[11px] tracking-wider">Nakdi Gerçekleşme Oranı</td>
+                    <td className="border border-black p-3.5 font-black text-black num text-[15px]">
+                      {projectInfo.contractAmount ? `% ${formatNumber(completionPercentage, 2)}` : <span className="text-[10px] text-gray-500 font-sans">Sözleşme bedeli girilmedi</span>}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-bold mb-1">YÜKLENİCİ FİRMA</p>
-              <p className="text-lg font-bold border-b border-gray-300 pb-2">{projectInfo.contractor}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-bold mb-1">HAKEDİŞ DÖNEMİ</p>
-              <p className="text-lg font-bold border-b border-gray-300 pb-2">{projectInfo.period}</p>
+
+            <div className="mt-12 flex justify-between items-end border-t-[2px] border-black pt-8">
+              <div>
+                <p className="text-[11px] text-gray-600 font-bold mb-1 tracking-widest uppercase">HAKEDİŞ NO / DÖNEMİ</p>
+                <p className="text-[22px] font-black text-black">{projectInfo.period}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-gray-600 font-bold mb-1 tracking-widest uppercase">TANZİM TARİHİ</p>
+                <p className="text-[22px] font-bold text-black">{new Date(projectInfo.date).toLocaleDateString('tr-TR')}</p>
+              </div>
             </div>
           </div>
           <PageNumber current={1} />
         </div>
 
-        {/* SAYFA 2: ARKA KAPAK (DETAYLANDIRILDI) */}
-        <div className="report-page flex flex-col relative">
+        {/* --- DİĞER SAYFALAR AYNI ŞEKİLDE DEVAM EDİYOR --- */}
+
+        {/* SAYFA 2: ARKA KAPAK */}
+        <div className="report-page block relative bg-white">
           <Header title="HAKEDİŞ ARKA KAPAĞI" />
-          <div className="border-2 border-black text-[11px]">
-            <div className="grid grid-cols-12 bg-gray-200 font-bold border-b border-black text-center">
-              <div className="col-span-4 p-2 border-r border-black">AÇIKLAMA</div>
-              <div className="col-span-2 p-2 border-r border-black">GENEL TOPLAM</div>
-              <div className="col-span-3 p-2 border-r border-black">ÖNCEKİ</div>
-              <div className="col-span-3 p-2">BU HAKEDİŞ</div>
-            </div>
 
-            {/* A) ÖDEMELER */}
-            <div className="bg-gray-100 font-bold p-1 border-b border-black text-center text-[10px]">A) ÖDEMELER</div>
+          <table className="w-full border-collapse border border-black text-[11px] mt-2 bg-white">
+            <thead>
+              <tr className="bg-gray-100 text-black border-b-[2px] border-black">
+                <th className="border border-black p-3 text-left w-1/2 tracking-wider">AÇIKLAMA</th>
+                <th className="border border-black p-3 text-right w-1/6 tracking-wider">KÜMÜLATİF</th>
+                <th className="border border-black p-3 text-right w-1/6 tracking-wider">ÖNCEKİ</th>
+                <th className="border border-black p-3 text-right w-1/6 tracking-wider">BU HAKEDİŞ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* A) ÖDEMELER */}
+              <tr className="bg-gray-50 border-b border-black">
+                <td colSpan={4} className="border border-black p-2 text-center font-bold tracking-widest text-[10px] text-black">A) ÖDEMELER</td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2.5 font-bold text-black pl-5">1. Yapılan İşler Tutarı</td>
+                <td className="border border-black p-2.5 text-right num">{formatNumber(workDone.general)}</td>
+                <td className="border border-black p-2.5 text-right num">{formatNumber(workDone.prev)}</td>
+                <td className="border border-black p-2.5 text-right font-bold text-black num">{formatNumber(workDone.current)}</td>
+              </tr>
+              {coverData.extraPayments.map((row, idx) => (
+                <tr key={idx}>
+                  <td className="border border-black p-2.5 pl-5"><span className="mr-1">{idx + 2}.</span> {row.description}</td>
+                  <td className="border border-black p-2.5 text-right num">{formatNumber((row.prevAmount || 0) + (row.currentAmount || 0))}</td>
+                  <td className="border border-black p-2.5 text-right num">{formatNumber(row.prevAmount)}</td>
+                  <td className="border border-black p-2.5 text-right font-bold num">{formatNumber(row.currentAmount)}</td>
+                </tr>
+              ))}
+              <tr className="bg-gray-100 font-bold border-t-[2px] border-black">
+                <td className="border border-black p-3 text-right uppercase">TOPLAM (Matrah) :</td>
+                <td className="border border-black p-3 text-right num">{formatNumber(totalAmountA.general)}</td>
+                <td className="border border-black p-3 text-right num">{formatNumber(totalAmountA.prev)}</td>
+                <td className="border border-black p-3 text-right num">{formatNumber(totalAmountA.current)}</td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2.5 text-right uppercase">KDV (%{coverData.kdvRate}) :</td>
+                <td className="border border-black p-2.5 text-right num">{formatNumber(kdvAmount.general)}</td>
+                <td className="border border-black p-2.5 text-right num">{formatNumber(kdvAmount.prev)}</td>
+                <td className="border border-black p-2.5 text-right num font-bold">{formatNumber(kdvAmount.current)}</td>
+              </tr>
+              <tr className="bg-gray-100 font-bold border-t border-black">
+                <td className="border border-black p-3 text-right uppercase">HAKEDİŞ FATURA TUTARI :</td>
+                <td className="border border-black p-3 text-right num">{formatNumber(invoiceAmount.general)}</td>
+                <td className="border border-black p-3 text-right num">{formatNumber(invoiceAmount.prev)}</td>
+                <td className="border border-black p-3 text-right text-black num text-[12px]">{formatNumber(invoiceAmount.current)}</td>
+              </tr>
 
-            <div className="grid grid-cols-12 border-b border-gray-300 font-bold">
-              <div className="col-span-4 p-2 border-r border-black">1. Yapılan İşler Tutarı</div>
-              <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(workDone.general)}</div>
-              <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(workDone.prev)}</div>
-              <div className="col-span-3 p-2 text-right">{formatNumber(workDone.current)}</div>
-            </div>
-            {/* Ek Ödemeler */}
-            {coverData.extraPayments.map((row, idx) => (
-                <div key={idx} className="grid grid-cols-12 border-b border-gray-300">
-                   <div className="col-span-4 p-1 pl-4 border-r border-black flex">
-                      <span className="mr-1">{idx + 2}.</span> {row.description}
-                   </div>
-                   <div className="col-span-2 p-1 border-r border-black text-right text-gray-600">
-                      {formatNumber((row.prevAmount||0) + (row.currentAmount||0))}
-                   </div>
-                   <div className="col-span-3 p-1 border-r border-black text-right text-gray-600">
-                      {formatNumber(row.prevAmount)}
-                   </div>
-                   <div className="col-span-3 p-1 text-right font-bold">
-                      {formatNumber(row.currentAmount)}
-                   </div>
-                </div>
-             ))}
-            
-            {/* TOPLAM A */}
-            <div className="grid grid-cols-12 border-b border-gray-400 font-bold bg-gray-50">
-               <div className="col-span-4 p-2 border-r border-black text-right pr-2">TOPLAM (Matrah) :</div>
-               <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(totalAmountA.general)}</div>
-               <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(totalAmountA.prev)}</div>
-               <div className="col-span-3 p-2 text-right">{formatNumber(totalAmountA.current)}</div>
-            </div>
+              {/* B) KESİNTİLER */}
+              <tr className="bg-gray-50 border-b border-black border-t-[2px]">
+                <td colSpan={4} className="border border-black p-2 text-center font-bold tracking-widest text-[10px] text-black">B) KESİNTİLER</td>
+              </tr>
+              {coverData.deductions.length === 0 && (
+                <tr><td colSpan={4} className="border border-black p-4 text-center text-gray-500 italic">Kesinti bulunmamaktadır.</td></tr>
+              )}
+              {coverData.deductions.map((row, idx) => (
+                <tr key={idx}>
+                  <td className="border border-black p-2.5 pl-5"><span className="mr-1">{idx + 1}.</span> {row.description}</td>
+                  <td className="border border-black p-2.5 text-right num">{formatNumber((row.prevAmount || 0) + (row.currentAmount || 0))}</td>
+                  <td className="border border-black p-2.5 text-right num">{formatNumber(row.prevAmount)}</td>
+                  <td className="border border-black p-2.5 text-right font-bold num">{formatNumber(row.currentAmount)}</td>
+                </tr>
+              ))}
 
-             {/* KDV */}
-            <div className="grid grid-cols-12 border-b border-black">
-               <div className="col-span-4 p-2 border-r border-black text-right pr-2">KDV (%{coverData.kdvRate}) :</div>
-               <div className="col-span-2 p-2 border-r border-black text-right text-gray-600">{formatNumber(kdvAmount.general)}</div>
-               <div className="col-span-3 p-2 border-r border-black text-right text-gray-600">{formatNumber(kdvAmount.prev)}</div>
-               <div className="col-span-3 p-2 text-right text-gray-600">{formatNumber(kdvAmount.current)}</div>
-            </div>
-
-             {/* FATURA TUTARI */}
-            <div className="grid grid-cols-12 border-b-2 border-black font-bold bg-blue-50">
-               <div className="col-span-4 p-2 border-r border-black text-right pr-2">FATURA TUTARI :</div>
-               <div className="col-span-2 p-2 border-r border-black text-right">{formatNumber(invoiceAmount.general)}</div>
-               <div className="col-span-3 p-2 border-r border-black text-right">{formatNumber(invoiceAmount.prev)}</div>
-               <div className="col-span-3 p-2 text-right text-blue-900">{formatNumber(invoiceAmount.current)}</div>
-            </div>
-
-             {/* B) KESİNTİLER */}
-            <div className="bg-gray-100 font-bold p-1 border-b border-black text-center text-[10px]">B) KESİNTİLER</div>
-            
-            {coverData.deductions.length === 0 && (
-               <div className="p-2 text-center text-gray-400 italic text-[9px] border-b border-black">Kesinti yok</div>
-            )}
-
-            {coverData.deductions.map((row, idx) => (
-               <div key={idx} className="grid grid-cols-12 border-b border-gray-300">
-                  <div className="col-span-4 p-1 pl-4 border-r border-black flex">
-                     <span className="mr-1">{idx + 1}.</span> {row.description}
-                  </div>
-                  <div className="col-span-2 p-1 border-r border-black text-right text-gray-600">
-                     {formatNumber((row.prevAmount||0) + (row.currentAmount||0))}
-                  </div>
-                  <div className="col-span-3 p-1 border-r border-black text-right text-gray-600">
-                     {formatNumber(row.prevAmount)}
-                  </div>
-                  <div className="col-span-3 p-1 text-right text-red-700">
-                     {formatNumber(row.currentAmount)}
-                  </div>
-               </div>
-            ))}
-
-            <div className="grid grid-cols-12 bg-emerald-100 font-bold text-sm border-t-2 border-black">
-              <div className="col-span-4 p-3 border-r border-black text-right">NET ÖDENECEK:</div>
-              <div className="col-span-8 p-3 text-right text-emerald-900">{formatCurrency(netPayable.current)}</div>
-            </div>
-          </div>
+              {/* NET ÖDENECEK */}
+              <tr className="bg-gray-100 font-bold border-t-[3px] border-black">
+                <td className="border border-black p-5 text-right tracking-widest text-[12px] uppercase">Net Ödenecek Tutar :</td>
+                <td colSpan={3} className="border border-black p-5 text-right num text-[14px] text-black">
+                  {formatCurrency(netPayable.current)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <SignatureBlock />
           <PageNumber current={2} />
         </div>
 
-        {/* SAYFA 3: İCMAL (DETAYLANDIRILDI) */}
-        <div className="report-page flex flex-col relative">
-          <Header title="HAKEDİŞ ÖZETİ (İCMAL)" />
-          <table className="w-full border-collapse border border-black text-[9px]">
+        {/* SAYFA 3: İCMAL */}
+        <div className="report-page block relative bg-white">
+          <Header title="HAKEDİŞ İCMALİ (ÖZETİ)" />
+
+          <table className="w-full border-collapse border border-black text-[10px] bg-white">
             <thead>
-              <tr className="bg-gray-200 font-bold text-center">
-                <th rowSpan={2} className="border border-black p-1 w-10">Poz</th>
-                <th rowSpan={2} className="border border-black p-1">İşin Tanımı</th>
-                <th rowSpan={2} className="border border-black p-1 w-8">Birim</th>
-                <th rowSpan={2} className="border border-black p-1 w-12">B.Fiyat</th>
-                <th colSpan={3} className="border border-black p-1 bg-blue-50">Miktar</th>
-                <th colSpan={3} className="border border-black p-1 bg-emerald-50">Tutar (TL)</th>
+              <tr className="bg-gray-100 font-bold text-center border-b-[2px] border-black">
+                <th rowSpan={2} className="border border-black p-2 w-16">Poz No</th>
+                <th rowSpan={2} className="border border-black p-2">İşin Cinsi / Tanımı</th>
+                <th rowSpan={2} className="border border-black p-2 w-10">Birim</th>
+                <th rowSpan={2} className="border border-black p-2 w-16">Birim Fiyat</th>
+                <th colSpan={3} className="border border-black p-2 border-b-[1.5px] border-black">Yapılan İş Miktarı</th>
+                <th colSpan={3} className="border border-black p-2 border-b-[1.5px] border-black">Yapılan İş Tutarı (TL)</th>
               </tr>
-              <tr className="bg-gray-100 font-bold text-center text-[8px]">
-                <th className="border border-black p-1">Önceki</th>
-                <th className="border border-black p-1">Bu Dönem</th>
-                <th className="border border-black p-1">Toplam</th>
-                <th className="border border-black p-1">Önceki</th>
-                <th className="border border-black p-1">Bu Dönem</th>
-                <th className="border border-black p-1">Toplam</th>
+              <tr className="bg-gray-50 font-bold text-center text-[9px] text-black">
+                <th className="border border-black p-1.5 w-14 uppercase">Önceki</th>
+                <th className="border border-black p-1.5 w-14 uppercase">Bu Dönem</th>
+                <th className="border border-black p-1.5 w-14 uppercase">Toplam</th>
+                <th className="border border-black p-1.5 w-16 uppercase">Önceki</th>
+                <th className="border border-black p-1.5 w-16 uppercase">Bu Dönem</th>
+                <th className="border border-black p-1.5 w-16 uppercase">Toplam</th>
               </tr>
             </thead>
             <tbody>
               {detailedGroupedData.map((item: any) => (
                 <tr key={item.code} className="hover:bg-gray-50">
-                  <td className="border border-black p-1 text-center font-bold">{item.code}</td>
-                  <td className="border border-black p-1 truncate max-w-[150px]">{item.description}</td>
-                  <td className="border border-black p-1 text-center">{item.unit}</td>
-                  <td className="border border-black p-1 text-right">{formatNumber(item.unitPrice, 2)}</td>
-                  
-                  {/* MİKTARLAR */}
-                  <td className="border border-black p-1 text-right text-gray-500">{formatNumber(item.prevQty, 2)}</td>
-                  <td className="border border-black p-1 text-right font-bold text-blue-800">{formatNumber(item.currentQty, 2)}</td>
-                  <td className="border border-black p-1 text-right font-semibold">{formatNumber(item.totalQty, 2)}</td>
+                  <td className="border border-black p-2 text-center font-bold">{item.code}</td>
+                  <td className="border border-black p-2">{item.description}</td>
+                  <td className="border border-black p-2 text-center">{item.unit}</td>
+                  <td className="border border-black p-2 text-right num">{formatNumber(item.unitPrice, 2)}</td>
 
-                  {/* TUTARLAR */}
-                  <td className="border border-black p-1 text-right text-gray-500">{formatNumber(item.prevAmount, 2)}</td>
-                  <td className="border border-black p-1 text-right font-bold text-emerald-800">{formatNumber(item.currentAmount, 2)}</td>
-                  <td className="border border-black p-1 text-right font-semibold">{formatNumber(item.totalAmount, 2)}</td>
+                  <td className="border border-black p-2 text-right num">{formatNumber(item.prevQty, 3)}</td>
+                  <td className="border border-black p-2 text-right font-bold text-black num">{formatNumber(item.currentQty, 3)}</td>
+                  <td className="border border-black p-2 text-right font-semibold num">{formatNumber(item.totalQty, 3)}</td>
+
+                  <td className="border border-black p-2 text-right num">{formatNumber(item.prevAmount, 2)}</td>
+                  <td className="border border-black p-2 text-right font-bold text-black num">{formatNumber(item.currentAmount, 2)}</td>
+                  <td className="border border-black p-2 text-right font-semibold num">{formatNumber(item.totalAmount, 2)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-               <tr className="bg-gray-800 text-white font-bold">
-                  <td colSpan={7} className="p-2 text-right">GENEL TOPLAM:</td>
-                  <td className="p-2 text-right border-l border-white text-[9px]">{formatNumber(totalPrevAmount)}</td>
-                  <td className="p-2 text-right border-l border-white text-[9px]">{formatNumber(totalCurrentAmount)}</td>
-                  <td className="p-2 text-right border-l border-white text-[9px]">{formatNumber(grandTotalAmount)}</td>
-               </tr>
+              <tr className="bg-gray-100 font-bold border-t-[2px] border-black">
+                <td colSpan={7} className="border border-black p-3 text-right uppercase tracking-wider text-[11px]">Genel Toplam:</td>
+                <td className="border border-black p-3 text-right text-[11px] num">{formatNumber(totalPrevAmount)}</td>
+                <td className="border border-black p-3 text-right text-[11px] text-black num">{formatNumber(totalCurrentAmount)}</td>
+                <td className="border border-black p-3 text-right text-[11px] num">{formatNumber(grandTotalAmount)}</td>
+              </tr>
             </tfoot>
           </table>
           <SignatureBlock />
           <PageNumber current={3} />
         </div>
 
-        {/* SAYFA 4 VE SONRASI: METRAJ CETVELLERİ */}
+        {/* SAYFA 4: YEŞİL DEFTER */}
+        <div className="report-page block relative bg-white">
+          <Header title="YEŞİL DEFTER (METRAJ İCMALİ)" />
+
+          <table className="w-full border-collapse border border-black text-[11px] bg-white mt-2">
+            <thead>
+              <tr className="bg-gray-100 font-bold text-center text-black border-b-[2px] border-black">
+                <th className="border border-black p-2.5 w-20">Poz No</th>
+                <th className="border border-black p-2.5 text-left">Açıklama / İmalat Yeri</th>
+                <th className="border border-black p-2.5 w-12">Birim</th>
+                <th className="border border-black p-2.5 w-24 text-right">Kümülatif</th>
+                <th className="border border-black p-2.5 w-24 text-right">Önceki Metraj</th>
+                <th className="border border-black p-2.5 w-24 text-right text-black">Bu Hakediş</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sheets.length > 0 ? sheets.map((sheet) => {
+                const prevQty = previousQuantities[sheet.id] || 0;
+                const currentQty = sheet.totalAmount - prevQty;
+                return (
+                  <tr key={sheet.id} className="hover:bg-gray-50">
+                    <td className="border border-black p-2.5 text-center font-bold">{sheet.code}</td>
+                    <td className="border border-black p-2.5">
+                      <span className="font-bold">{sheet.groupName}</span>
+                      <span className="text-gray-600 ml-1">({sheet.description})</span>
+                    </td>
+                    <td className="border border-black p-2.5 text-center">{sheet.unit}</td>
+                    <td className="border border-black p-2.5 text-right num">{formatNumber(sheet.totalAmount, 3)}</td>
+                    <td className="border border-black p-2.5 text-right num">{formatNumber(prevQty, 3)}</td>
+                    <td className="border border-black p-2.5 text-right font-bold text-black num">{formatNumber(currentQty, 3)}</td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={6} className="border border-black p-4 text-center text-gray-500 italic">Veri bulunamadı.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <SignatureBlock />
+          <PageNumber current={4} />
+        </div>
+
+        {/* SAYFA 5+: METRAJ CETVELLERİ */}
         {sheets.map((sheet, index) => (
-          <div key={sheet.id} className="report-page flex flex-col relative">
+          <div key={sheet.id} className="report-page block relative bg-white">
             <Header title="METRAJ CETVELİ" />
-            <div className="bg-gray-100 p-2 border border-black mb-2 font-bold text-[10px] flex justify-between">
-              <span>{index + 1}. {sheet.groupName}</span>
-              <span>Poz: {sheet.code}</span>
+
+            <div className="bg-gray-100 p-3 border border-black border-b-0 font-bold text-[11px] flex justify-between uppercase mt-2">
+              <span className="text-black">{index + 1}. {sheet.groupName} <span className="text-gray-700 font-normal capitalize ml-1">({sheet.description})</span></span>
+              <span className="tracking-widest">POZ: {sheet.code}</span>
             </div>
-            <table className="w-full border-collapse border border-black text-[10px]">
+
+            <table className="w-full border-collapse border border-black text-[11px] bg-white">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="border border-black p-1 text-left">Açıklama</th>
-                  <th className="border border-black p-1 text-center w-12">En</th>
-                  <th className="border border-black p-1 text-center w-12">Boy</th>
-                  <th className="border border-black p-1 text-center w-12">Yük.</th>
-                  <th className="border border-black p-1 text-center w-12">Adet</th>
-                  <th className="border border-black p-1 text-right w-20">Miktar</th>
+                <tr className="bg-gray-50 text-black border-b-[2px] border-black font-bold">
+                  <th className="border border-black p-2.5 text-left">Açıklama / İmalat Yeri</th>
+                  {sheet.type === 'rebar' ? (
+                    <>
+                      <th className="border border-black p-2.5 text-center w-16">Çap (Ø)</th>
+                      <th className="border border-black p-2.5 text-center w-16">Boy (L)</th>
+                      <th className="border border-black p-2.5 text-center w-16">B.Ağır.</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="border border-black p-2.5 text-center w-16">En</th>
+                      <th className="border border-black p-2.5 text-center w-16">Boy</th>
+                      <th className="border border-black p-2.5 text-center w-16">Yükseklik</th>
+                    </>
+                  )}
+                  <th className="border border-black p-2.5 text-center w-14">Adet</th>
+                  <th className="border border-black p-2.5 text-right w-28">Miktar</th>
                 </tr>
               </thead>
               <tbody>
-                {sheet.measurements.map((m) => (
+                {sheet.measurements.length > 0 ? sheet.measurements.map((m) => (
                   <tr key={m.id}>
-                    <td className="border border-black p-1">{m.description}</td>
-                    <td className="border border-black p-1 text-center text-gray-500">{m.width ? formatNumber(m.width) : '-'}</td>
-                    <td className="border border-black p-1 text-center text-gray-500">{m.length ? formatNumber(m.length) : '-'}</td>
-                    <td className="border border-black p-1 text-center text-gray-500">{m.height ? formatNumber(m.height) : '-'}</td>
-                    <td className="border border-black p-1 text-center font-bold">{formatNumber(m.count)}</td>
-                    <td className="border border-black p-1 text-right font-mono">{formatNumber(calculateMeasurementRow(m), 2)}</td>
+                    <td className="border border-black p-2">{m.description || '-'}</td>
+
+                    {sheet.type === 'rebar' ? (
+                      <>
+                        <td className="border border-black p-2 text-center num">{m.diameter ? formatNumber(m.diameter) : '-'}</td>
+                        <td className="border border-black p-2 text-center num">{m.length ? formatNumber(m.length) : '-'}</td>
+                        <td className="border border-black p-2 text-center num">{m.unitWeight ? formatNumber(m.unitWeight) : (m.diameter ? 'Oto.' : '-')}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border border-black p-2 text-center num">{m.width ? formatNumber(m.width) : '-'}</td>
+                        <td className="border border-black p-2 text-center num">{m.length ? formatNumber(m.length) : '-'}</td>
+                        <td className="border border-black p-2 text-center num">{m.height ? formatNumber(m.height) : '-'}</td>
+                      </>
+                    )}
+
+                    <td className="border border-black p-2 text-center font-bold num">{formatNumber(m.count)}</td>
+                    <td className="border border-black p-2 text-right font-bold num">{formatNumber(calculateMeasurementRow(m, sheet.type), 2)}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={6} className="p-4 text-center text-gray-500 italic">Veri girilmemiş.</td></tr>
+                )}
               </tbody>
               <tfoot>
-                <tr className="bg-gray-100 font-bold">
-                  <td colSpan={5} className="border border-black p-1 text-right">TOPLAM:</td>
-                  <td className="border border-black p-1 text-right">{formatNumber(sheet.totalAmount, 2)} {sheet.unit}</td>
+                <tr className="bg-gray-100 font-bold border-t-[2px] border-black">
+                  <td colSpan={5} className="border border-black p-3 text-right tracking-wider uppercase">Toplam Metraj:</td>
+                  <td className="border border-black p-3 text-right text-[12px] text-black num">{formatNumber(sheet.totalAmount, 2)} {sheet.unit}</td>
                 </tr>
               </tfoot>
             </table>
+
             <SignatureBlock />
-            <PageNumber current={4 + index} />
+            <PageNumber current={5 + index} />
           </div>
         ))}
       </div>
