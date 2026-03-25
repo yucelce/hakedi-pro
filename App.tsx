@@ -37,6 +37,9 @@ const App: React.FC = () => {
         return;
       }
 
+      const newUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', newUrl);
+
       try {
         // TESTER MOD
         if (apiKey === "admin") {
@@ -45,7 +48,13 @@ const App: React.FC = () => {
           return;
         }
 
-        const response = await fetch(`https://www.celikyucel.com/_functions/validateKey?apiKey=${apiKey}`);
+        const response = await fetch(`https://www.celikyucel.com/_functions/validateKey`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }); 
         const data = await response.json();
 
         if (data.valid === true) {
@@ -172,7 +181,7 @@ const App: React.FC = () => {
   }
 
   return (
-<div className="flex h-screen w-screen bg-slate-100 text-slate-800 overflow-hidden font-sans text-sm selection:bg-blue-200 print:h-auto print:w-auto print:overflow-visible print:bg-white">
+    <div className="flex h-screen w-screen bg-slate-100 text-slate-800 overflow-hidden font-sans text-sm selection:bg-blue-200 print:h-auto print:w-auto print:overflow-visible print:bg-white">
       {/* SOL MENÜ (SIDEBAR) */}
       <aside className="w-60 bg-slate-900 text-slate-300 flex flex-col shrink-0 no-print border-r border-slate-800 z-20 shadow-lg">
         {/* Header / Logo */}
@@ -256,7 +265,7 @@ const App: React.FC = () => {
 
         {/* İçerik (Kaydırılabilir Alan) */}
         <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth print:overflow-visible print:p-0">
-   <div className="max-w-6xl mx-auto print:max-w-none print:m-0">
+          <div className="max-w-6xl mx-auto print:max-w-none print:m-0">
             {activeTab === 'projects' && accountId && (
               <ProjectsTab
                 accountId={accountId}
@@ -281,11 +290,11 @@ const App: React.FC = () => {
             )}            {activeTab === 'summary' && <PaymentSummary sheets={sheets} previousQuantities={previousQuantities} setPreviousQuantities={setPreviousQuantities} projectInfo={projectInfo} />}
             {activeTab === 'cover' && <PaymentCover sheets={sheets} previousQuantities={previousQuantities} projectInfo={projectInfo} coverData={coverData} setCoverData={setCoverData} />}
             {activeTab === 'report' && (
-              <PrintReport 
-                sheets={sheets} 
-                projectInfo={projectInfo} 
-                previousQuantities={previousQuantities} 
-                coverData={coverData} 
+              <PrintReport
+                sheets={sheets}
+                projectInfo={projectInfo}
+                previousQuantities={previousQuantities}
+                coverData={coverData}
               />
             )}
           </div>
