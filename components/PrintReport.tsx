@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { MeasurementSheet, ProjectInfo, CoverData } from '../types';
 import { calculateMeasurementRow, formatNumber, formatCurrency } from '../utils';
-import { Download, Printer } from 'lucide-react';
+import { generateExcelReport } from './ExportExcel'; // 1. Import'u ekleyin
+import { FileSpreadsheet, Download, Printer } from 'lucide-react'; // 2. İkonu ekleyin
 
 interface Props {
   sheets: MeasurementSheet[];
@@ -108,19 +109,16 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
     ? ((totalAmountA.general / projectInfo.contractAmount) * 100)
     : 0;
 
+  // --- DÜZELTİLMİŞ KISIM BAŞLANGICI ---
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
+  const [progress, setProgress] = React.useState(0); // BU SATIRI EKLEMELİSİN
+  const [progressMessage, setProgressMessage] = React.useState("Başlatılıyor...");
+  // --- DÜZELTİLMİŞ KISIM BİTİŞİ ---
 
-  const handleDownloadPDF = async () => {
+ const handleDownloadPDF = async () => {
     setIsGenerating(true);
     setProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 90) return 90;
-        return prev + 15;
-      });
-    }, 500);
+    setProgressMessage("İstek gönderiliyor...");
 
     try {
       const reportElement = document.getElementById('report-container');
@@ -135,14 +133,23 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
             <style>
               body { background-color: white !important; font-family: Arial, Helvetica, sans-serif !important; }
               .no-print { display: none !important; }
+              
+              /* BURASI GÜNCELLENDİ: Tarayıcı baskı ayarlarıyla eşitlendi */
               .report-page { 
-                box-shadow: none !important; 
-                border: none !important; 
-                margin: 0 !important; 
-                width: 100% !important; 
-                padding: 10mm !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                min-height: 276mm !important; /* A4 yüksekliği - Marjinler */
+                position: relative !important; /* absolute için çapayı belirler */
                 page-break-after: always;
+                break-after: page;
+                display: block !important;
+                box-sizing: border-box !important;
               }
+              
               .num { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; }
             </style>
           </head>
@@ -158,29 +165,89 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
         body: JSON.stringify({ html: fullHtml })
       });
 
-      if (!response.ok) throw new Error('Sunucu PDF oluştururken hata verdi.');
+      if (!response.ok || !response.body) throw new Error('Sunucu bağlantı hatası.');
 
-      clearInterval(progressInterval);
-      setProgress(100);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let finalPdfBase64 = ''; // Base64 parçalarını biriktirebiliriz
+      let leftover = ''; // KRİTİK: Yarım kalan satırları burada tutacağız
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectInfo.projectName.replace(/\s+/g, '_')}_Hakedis.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
 
-    } catch (error) {
+        if (value) {
+          // Yeni gelen parçayı, önceki parçadan kalan yarım metinle birleştiriyoruz
+          const chunk = leftover + decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          // Son eleman tam olmayabilir (\n ile bitmemiş olabilir), 
+          // bu yüzden onu bir sonraki tur için saklıyoruz
+          leftover = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+
+            try {
+              const data = JSON.parse(trimmedLine);
+
+              if (data.percent !== undefined) setProgress(data.percent);
+              if (data.message) setProgressMessage(data.message);
+
+              // PDF verisini kontrol et
+              const b64 = data.pdfBase64 || data.data || data.base64 || data.pdf;
+              if (b64) {
+                finalPdfBase64 = b64;
+              }
+            } catch (e) {
+              // Hata olursa konsola bas ama döngüyü bozma
+              console.warn("JSON Ayrıştırma Hatası (Parçalı Veri):", e);
+            }
+          }
+        }
+      }
+
+      // Döngü bittiğinde hala bir 'leftover' kalmışsa onu da son bir kez deneyelim
+      if (leftover.trim()) {
+        try {
+          const lastData = JSON.parse(leftover.trim());
+          const b64 = lastData.pdfBase64 || lastData.data || lastData.base64 || lastData.pdf;
+          if (b64) finalPdfBase64 = b64;
+        } catch (e) {}
+      }
+
+      if (finalPdfBase64) {
+        setProgressMessage("PDF dosyası işleniyor...");
+        const byteCharacters = atob(finalPdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${projectInfo.projectName.replace(/\s+/g, '_')}_Hakedis.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        throw new Error("Sunucudan PDF verisi alınamadı.");
+      }
+
+    } catch (error: any) {
       console.error(error);
-      clearInterval(progressInterval);
-      alert("PDF üretilirken sunucu hatası oluştu.");
+      alert("Hata: " + error.message);
     } finally {
       setTimeout(() => {
         setIsGenerating(false);
         setProgress(0);
+        setProgressMessage("Başlatılıyor...");
       }, 1000);
     }
   };
@@ -270,6 +337,14 @@ export const PrintReport: React.FC<Props> = ({ sheets, projectInfo, previousQuan
       <div className="bg-white border border-gray-200 p-4 mb-8 max-w-4xl w-full flex justify-between items-center rounded-lg shadow-sm no-print">
         <p className="text-xs text-gray-600 font-medium">Önizleme modu. Raporu resmi formatta dışa aktarabilirsiniz.</p>
         <div className="flex gap-3">
+          {/* YENİ EXCEL BUTONU */}
+          <button
+            onClick={() => generateExcelReport(projectInfo, sheets, previousQuantities, coverData)}
+            className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2 rounded-md text-[13px] font-bold hover:bg-emerald-100 flex items-center gap-2 transition shadow-sm"
+          >
+            <FileSpreadsheet size={16} /> Excel (.xlsx)
+          </button>
+
           <button
             onClick={handleDownloadPDF}
             disabled={isGenerating}

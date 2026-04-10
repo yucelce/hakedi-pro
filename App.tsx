@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MeasurementSheet, ProjectInfo, TabView, CoverData } from './types';
 import { InputSection } from './components/InputSection';
 import { PaymentSummary } from './components/PaymentSummary';
@@ -6,42 +6,43 @@ import { PaymentCover } from './components/PaymentCover';
 import { PrintReport } from './components/PrintReport';
 import { ProjectSettings } from './components/ProjectSettings';
 import { GreenBook } from './components/GreenBook';
-import { ProjectsTab } from './components/ProjectsTab'; // YENİ EKLENDİ
-import { supabase } from './components/supabase'; // YENİ EKLENDİ
-import { generateId } from './utils';
+import { ProjectsTab } from './components/ProjectsTab';
+import { supabase } from './components/supabase';
 import {
-  Printer, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, AlertTriangle, Building2, Save, FolderOpen, Loader2
+  Printer, LayoutDashboard, ClipboardList, BookOpenCheck, Settings, AlertTriangle, Building2, Save, FolderOpen, Loader2, BookOpen
 } from 'lucide-react';
-import { BookOpen } from 'lucide-react';
-
-// TabView tipine 'projects' eklendiğini varsayıyoruz (types.ts içinde TabView union'una 'projects' eklemeyi unutmayın)
 
 const App: React.FC = () => {
   // --- AUTH STATE ---
   const [authStatus, setAuthStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [authMessage, setAuthMessage] = useState<string>('');
 
-  // YENİ EKLENEN STATE'LER (Account ve Proje Yönetimi)
+  // --- ACCOUNT VE PROJE YÖNETİMİ ---
   const [accountId, setAccountId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     const checkAccess = async () => {
       const urlParams = new URLSearchParams(window.location.search);
-      const apiKey = urlParams.get('apiKey');
+      let apiKey = urlParams.get('apiKey');
+
+      if (apiKey) {
+        localStorage.setItem('hakedis_api_key', apiKey);
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState(null, '', newUrl);
+      } else {
+        apiKey = localStorage.getItem('hakedis_api_key');
+      }
 
       if (!apiKey) {
         setAuthStatus('error');
-        setAuthMessage("API anahtarı eksik. Lütfen ana sayfa üzerinden giriş yapın.");
+        setAuthMessage("Oturum bulunamadı. Lütfen ana sayfa üzerinden giriş yapın.");
         return;
       }
 
-      const newUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState(null, '', newUrl);
-
       try {
-        // TESTER MOD
         if (apiKey === "admin") {
           setAuthStatus('success');
           setAccountId("admin");
@@ -54,22 +55,16 @@ const App: React.FC = () => {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           }
-        }); 
+        });
         const data = await response.json();
 
         if (data.valid === true) {
           setAuthStatus('success');
-          // WIX'ten gelen üye ID'sini güvenli bir şekilde sisteme kaydediyoruz
-          if (data.memberId) {
-            setAccountId(data.memberId);
-          } else {
-            // Eğer üye girişi yapmamış ama api key'i geçerliyse anonim bir ID atayabiliriz 
-            // ya da api key'in kendisini accountId yapabiliriz
-            setAccountId(apiKey);
-          }
+          setAccountId(data.memberId ? data.memberId : apiKey);
         } else {
+          localStorage.removeItem('hakedis_api_key');
           setAuthStatus('error');
-          setAuthMessage(data.message || "API anahtarınızın süresi dolmuş veya geçersiz.");
+          setAuthMessage(data.message || "Oturumunuzun süresi dolmuş veya geçersiz. Lütfen tekrar giriş yapın.");
         }
       } catch (error) {
         console.error("Doğrulama hatası:", error);
@@ -79,6 +74,17 @@ const App: React.FC = () => {
     };
     checkAccess();
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "Kaydedilmemiş değişiklikleriniz var. Ayrılmak istediğinize emin misiniz?";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   // --- MEVCUT STATE YÖNETİMİ ---
   const [activeTab, setActiveTab] = useState<TabView | 'projects'>('input');
@@ -104,10 +110,88 @@ const App: React.FC = () => {
 
   const [sheets, setSheets] = useState<MeasurementSheet[]>([]);
 
-  // --- PROJE KAYDETME FONKSİYONU ---
+  // Değişiklik Algılayıcı (isDirty Flag)
+// Sayfanın ilk defa yüklenip yüklenmediğini takip etmek için
+  const isInitialMount = useRef(true);
+
+  // Değişiklik Algılayıcı (isDirty Flag)
+  useEffect(() => {
+    // Eğer ilk yüklenmeyse, pas geç ve durumu false yap
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (authStatus === 'success') {
+      setIsDirty(true);
+    }
+  }, [projectInfo, sheets, coverData, previousQuantities]); // authStatus'u buradan çıkardık ki giriş yapıldığı an tetiklenmesin
+
+  // --- FARKLI KAYDET (YENİ PROJE OLARAK KAYDET) ---
+  const handleSaveAsNewProject = async () => {
+    if (!accountId) {
+      alert("Oturum bilginiz bulunamadı.");
+      return;
+    }
+
+    const newProjectName = prompt(
+      "Yeni proje olarak kaydetmek için bir isim girin:", 
+      `${projectInfo.projectName} (Kopya)`
+    );
+
+    if (!newProjectName || newProjectName.trim() === '') return;
+
+    setIsSaving(true);
+    
+    const updatedProjectInfo = { ...projectInfo, projectName: newProjectName };
+    const projectDataToSave = { 
+      projectInfo: updatedProjectInfo, 
+      sheets, 
+      coverData, 
+      previousQuantities 
+    };
+
+    try {
+      const { count, error: countError } = await supabase
+        .from('hakedis_projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('account_id', accountId);
+
+      if (countError) throw countError;
+
+      if (count !== null && count >= 20) {
+        alert("Maksimum proje limitine (10 adet) ulaştınız. Lütfen eski bir projeyi silin.");
+        setIsSaving(false);
+        return;
+      }
+
+      const { data, error } = await supabase.from('hakedis_projects').insert([{
+        account_id: accountId,
+        project_name: updatedProjectInfo.projectName,
+        period: updatedProjectInfo.period,
+        project_data: projectDataToSave
+      }]).select();
+
+      if (error || !data || data.length === 0) throw error || new Error("Kayıt oluşturulamadı");
+      
+      setCurrentProjectId(data[0].id);
+      setProjectInfo(updatedProjectInfo);
+      setIsDirty(false);
+      alert("Proje başarıyla YENİ BİR PROJE olarak kaydedildi!");
+
+    } catch (error) {
+      console.error("Farklı kaydetme hatası:", error);
+      alert("Proje kaydedilirken bir veritabanı hatası oluştu.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- PROJE KAYDETME VEYA ÜZERİNE YAZMA ---
   const handleSaveProject = async () => {
     if (!accountId) {
-      alert("Oturum bilginiz bulunamadı."); return;
+      alert("Oturum bilginiz bulunamadı.");
+      return;
     }
 
     setIsSaving(true);
@@ -115,7 +199,6 @@ const App: React.FC = () => {
 
     try {
       if (currentProjectId) {
-        // Mevcut projeyi GÜNCELLE
         const { error } = await supabase.from('hakedis_projects').update({
           project_name: projectInfo.projectName,
           period: projectInfo.period,
@@ -124,9 +207,10 @@ const App: React.FC = () => {
         }).eq('id', currentProjectId);
 
         if (error) throw error;
+        setIsDirty(false);
         alert("Proje değişiklikleri başarıyla kaydedildi!");
-      } else {
-        // YENİ PROJE OLARAK KAYDET (10 Limit Kontrolü)
+      }
+      else {
         const { count, error: countError } = await supabase
           .from('hakedis_projects')
           .select('*', { count: 'exact', head: true })
@@ -134,8 +218,8 @@ const App: React.FC = () => {
 
         if (countError) throw countError;
 
-        if (count !== null && count >= 10) {
-          alert("Maksimum proje limitine (10 adet) ulaştınız. Lütfen 'Kayıtlı Projeler' sekmesinden eski projelerinizden birini silin.");
+        if (count !== null && count >= 20) {
+          alert("Maksimum proje limitine (10 adet) ulaştınız. Lütfen eski bir projeyi silin.");
           setIsSaving(false);
           return;
         }
@@ -147,15 +231,24 @@ const App: React.FC = () => {
           project_data: projectDataToSave
         }]).select();
 
-        if (error) throw error;
+        if (error || !data || data.length === 0) throw error || new Error("Kayıt oluşturulamadı");
+        
         setCurrentProjectId(data[0].id);
+        setIsDirty(false);
         alert("Proje başarıyla buluta kaydedildi!");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Kaydetme hatası:", error);
       alert("Proje kaydedilirken bir veritabanı hatası oluştu.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    if(confirm("Çıkış yapmak istediğinize emin misiniz?")) {
+      localStorage.removeItem('hakedis_api_key');
+      window.location.href = "https://www.celikyucel.com"; 
     }
   };
 
@@ -237,12 +330,16 @@ const App: React.FC = () => {
             <button onClick={() => setActiveTab('report')} className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition text-xs font-medium ${activeTab === 'report' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
               <div className="flex items-center gap-3"><Printer size={16} /> Raporla & Yazdır</div>
             </button>
+            <button onClick={handleLogout} className="mt-2 w-full flex items-center gap-3 px-3 py-2 rounded-md transition text-xs font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300">
+              <AlertTriangle size={16} /> Çıkış Yap
+            </button>
           </div>
         </nav>
       </aside>
 
       {/* SAĞ ÇALIŞMA ALANI */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative print:block print:h-auto print:overflow-visible print:bg-white">
+        
         {/* Windows Title Bar Hissi (Durum Çubuğu) */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 no-print shadow-sm z-10">
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -252,15 +349,31 @@ const App: React.FC = () => {
             {currentProjectId && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold">BULUTA KAYITLI</span>}
           </div>
 
-          {/* KAYDET BUTONU */}
-          <button
-            onClick={handleSaveProject}
-            disabled={isSaving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg transition text-xs font-bold shadow"
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Projeyi Kaydet
-          </button>
+          {/* KAYDET BUTONLARI */}
+          <div className="flex items-center gap-2">
+            {currentProjectId && (
+              <button
+                onClick={handleSaveAsNewProject}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition text-xs font-bold shadow bg-slate-100 border border-slate-300 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                title="Bu projeyi şablon olarak kullanıp yeni bir isimle kopyala"
+              >
+                <FolderOpen size={16} /> Farklı Kaydet
+              </button>
+            )}
+
+            <button
+              onClick={handleSaveProject}
+              disabled={isSaving}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition text-xs font-bold shadow ${isDirty && !isSaving
+                ? 'bg-amber-600 hover:bg-amber-700 animate-pulse'
+                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400'
+                } text-white`}
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {isDirty && currentProjectId ? "Üzerine Yaz (Güncelle) *" : (isDirty ? "Değişiklikleri Kaydet *" : "Projeyi Kaydet")}
+            </button>
+          </div>
         </header>
 
         {/* İçerik (Kaydırılabilir Alan) */}
@@ -269,6 +382,8 @@ const App: React.FC = () => {
             {activeTab === 'projects' && accountId && (
               <ProjectsTab
                 accountId={accountId}
+                isDirty={isDirty}
+                setIsDirty={setIsDirty} 
                 setCurrentProjectId={setCurrentProjectId}
                 setProjectInfo={setProjectInfo}
                 setSheets={setSheets}
@@ -277,18 +392,45 @@ const App: React.FC = () => {
                 setActiveTab={setActiveTab}
               />
             )}
-            {activeTab === 'settings' && <ProjectSettings projectInfo={projectInfo} setProjectInfo={setProjectInfo} />}
-            {activeTab === 'input' && <InputSection items={sheets} setItems={setSheets} />}
+            
+            {activeTab === 'settings' && (
+              <ProjectSettings projectInfo={projectInfo} setProjectInfo={setProjectInfo} />
+            )}
+            
+            {activeTab === 'input' && (
+              <InputSection items={sheets} setItems={setSheets} />
+            )}
+            
             {activeTab === 'greenbook' && (
               <GreenBook
                 sheets={sheets}
                 projectInfo={projectInfo}
                 previousQuantities={previousQuantities}
                 setPreviousQuantities={setPreviousQuantities}
-                accountId={accountId} // YENİ EKLENDİ
+                accountId={accountId}
+                coverData={coverData}
               />
-            )}            {activeTab === 'summary' && <PaymentSummary sheets={sheets} previousQuantities={previousQuantities} setPreviousQuantities={setPreviousQuantities} projectInfo={projectInfo} />}
-            {activeTab === 'cover' && <PaymentCover sheets={sheets} previousQuantities={previousQuantities} projectInfo={projectInfo} coverData={coverData} setCoverData={setCoverData} />}
+            )}            
+            
+            {activeTab === 'summary' && (
+              <PaymentSummary 
+                sheets={sheets} 
+                previousQuantities={previousQuantities} 
+                setPreviousQuantities={setPreviousQuantities} 
+                projectInfo={projectInfo} 
+              />
+            )}
+            
+            {activeTab === 'cover' && (
+              <PaymentCover 
+                sheets={sheets} 
+                previousQuantities={previousQuantities} 
+                projectInfo={projectInfo} 
+                coverData={coverData} 
+                setCoverData={setCoverData} 
+              />
+            )}
+            
             {activeTab === 'report' && (
               <PrintReport
                 sheets={sheets}

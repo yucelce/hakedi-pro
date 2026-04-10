@@ -6,6 +6,8 @@ import { ProjectInfo, MeasurementSheet, CoverData } from '../types';
 
 interface Props {
   accountId: string;
+  isDirty: boolean;
+  setIsDirty: React.Dispatch<React.SetStateAction<boolean>>;
   setCurrentProjectId: React.Dispatch<React.SetStateAction<string | null>>;
   setProjectInfo: React.Dispatch<React.SetStateAction<ProjectInfo>>;
   setSheets: React.Dispatch<React.SetStateAction<MeasurementSheet[]>>;
@@ -14,8 +16,8 @@ interface Props {
   setActiveTab: React.Dispatch<React.SetStateAction<any>>;
 }
 
-export const ProjectsTab: React.FC<Props> = ({ 
-  accountId, setCurrentProjectId, setProjectInfo, setSheets, setCoverData, setPreviousQuantities, setActiveTab 
+export const ProjectsTab: React.FC<Props> = ({
+  accountId,isDirty,setIsDirty, setCurrentProjectId, setProjectInfo, setSheets, setCoverData, setPreviousQuantities, setActiveTab
 }) => {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,11 @@ export const ProjectsTab: React.FC<Props> = ({
   }, [accountId]);
 
   const loadProject = async (id: string) => {
+    if (isDirty) {
+      const confirmLeave = confirm("Kaydedilmemiş değişiklikleriniz var. Başka bir projeyi yüklerseniz bu değişiklikler kaybolacaktır. Devam etmek istiyor musunuz?");
+      if (!confirmLeave) return;
+    }
+
     const { data, error } = await supabase
       .from('hakedis_projects')
       .select('project_data')
@@ -56,12 +63,19 @@ export const ProjectsTab: React.FC<Props> = ({
     setCoverData(pd.coverData);
     setPreviousQuantities(pd.previousQuantities);
     setCurrentProjectId(id);
-    setActiveTab('input'); // Yüklendikten sonra ana ekrana at
+    setActiveTab('input'); 
+
+    // YENİ EKLENEN KISIM: 
+    // App.tsx'teki değişiklik algılayıcının (useEffect) tetiklenmesini bekleyip 
+    // ardından "Kaydet" uyarısını kapatıyoruz (false yapıyoruz).
+    setTimeout(() => {
+      setIsDirty(false);
+    }, 50);
   };
 
   const deleteProject = async (id: string) => {
     if (!confirm("Bu projeyi silmek istediğinize emin misiniz?")) return;
-    
+
     const { error } = await supabase.from('hakedis_projects').delete().eq('id', id);
     if (error) {
       alert("Silinirken hata oluştu.");
@@ -71,10 +85,14 @@ export const ProjectsTab: React.FC<Props> = ({
   };
 
   const startNewProject = () => {
-    if (confirm("Mevcut kaydedilmemiş değişiklikleriniz kaybolabilir. Yeni projeye başlamak istiyor musunuz?")) {
-      window.location.reload(); // En temiz sıfırlama yöntemi
-    }
-  };
+  const message = isDirty 
+    ? "Kaydedilmemiş değişiklikleriniz var. Yeni projeye başlarsanız mevcut veriler silinecektir. Devam edilsin mi?"
+    : "Yeni bir projeye başlamak istiyor musunuz?";
+    
+  if (confirm(message)) {
+    window.location.reload();
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -109,7 +127,7 @@ export const ProjectsTab: React.FC<Props> = ({
                   <h3 className="font-bold text-slate-800 text-base">{proj.project_name}</h3>
                   <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{proj.period}</span>
-<span className="flex items-center gap-1"><Clock size={12} /> {new Date(proj.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>                  </div>
+                    <span className="flex items-center gap-1"><Clock size={12} /> {new Date(proj.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>                  </div>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => loadProject(proj.id)} className="bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white px-4 py-2 rounded text-xs font-bold transition">

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { MeasurementSheet, ProjectInfo } from '../types';
 import { formatNumber } from '../utils';
-import { BookOpen, Printer, Info, CloudDownload, X, Loader2, Clock, ArrowRightLeft, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Printer, Info, CloudDownload, X, Loader2, Clock, ArrowRightLeft, CheckCircle2, Settings, FileSpreadsheet } from 'lucide-react';
 import { supabase } from './supabase';
+
 
 interface Props {
   sheets: MeasurementSheet[];
@@ -10,13 +11,15 @@ interface Props {
   previousQuantities: Record<string, number>;
   setPreviousQuantities: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   accountId?: string | null;
+  coverData: CoverData; 
 }
 
-export const GreenBook: React.FC<Props> = ({ sheets, projectInfo, previousQuantities, setPreviousQuantities, accountId }) => {
+export const GreenBook: React.FC<Props> = ({ sheets, projectInfo, previousQuantities, setPreviousQuantities, accountId,coverData }) => {
   // --- STATE'LER ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Eşleştirme Sihirbazı State'leri
   const [isMatchingStep, setIsMatchingStep] = useState(false); // 1. Aşama mı, 2. Aşama mı?
@@ -168,13 +171,15 @@ export const GreenBook: React.FC<Props> = ({ sheets, projectInfo, previousQuanti
           </p>
         </div>
         <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-          <button onClick={openImportModal} className="flex items-center justify-center gap-2 bg-amber-50 border border-amber-300 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-900 transition text-sm font-bold shadow-sm">
-            <CloudDownload size={16} /> Önceki Hakedişten Çek
-          </button>
-          <button onClick={() => window.print()} className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition text-sm font-medium shadow-sm">
-            <Printer size={16} /> Defteri Yazdır
-          </button>
-        </div>
+  <button onClick={() => setShowSettings(!showSettings)} className="...">
+    <Settings size={16} /> Ayarlar
+  </button>
+  
+
+  <button onClick={() => window.print()} className="...">
+    <Printer size={16} /> Yazdır
+  </button>
+</div>
       </div>
 
       {/* --- ANA TABLO (YEŞİL DEFTER) --- */}
